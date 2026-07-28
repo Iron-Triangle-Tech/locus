@@ -312,3 +312,5 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# Developing tools
+.vscode/
