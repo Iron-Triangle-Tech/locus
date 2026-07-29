@@ -1,7 +1,7 @@
 [project]
 name = "locus"
 version = "0.1.0"
-description = "Locus — a general-purpose autonomous agent platform."
+description = "Locus — a general-purpose agent platform."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
@@ -58,12 +58,6 @@ ignore = ["E501"]  # line length handled by formatter
 
 [tool.ruff.lint.isort]
 known-first-party = ["locus"]
-
-[tool.mypy]
-python_version = "3.11"
-strict = true
-warn_unused_ignores = true
-plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 module = ["google.genai.*", "playwright.*"]

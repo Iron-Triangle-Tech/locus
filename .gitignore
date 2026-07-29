@@ -314,3 +314,4 @@ cython_debug/
 
 # Developing tools
 .vscode/
+example/
