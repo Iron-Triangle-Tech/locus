@@ -22,8 +22,11 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 #: Role on a stored message thread.
 Role = Literal["user", "assistant", "tool", "system"]
 
-#: Provider identifier used to route a turn. ``auto`` lets core pick the default.
-ProviderName = Literal["anthropic", "openai", "gemini", "auto"]
+#: Provider identifier used to route a turn. Opaque string name resolved by
+#: core's provider registry; the reserved value ``"auto"`` picks the configured
+#: default. Built-ins include ``anthropic``/``openai``/``gemini``; any name
+#: configured under ``[providers.<name>]`` in core's config also works.
+ProviderName = str
 
 
 class ToolSchema(BaseModel):
@@ -189,7 +192,7 @@ CoreFrame = Annotated[
 ]
 
 # Direction sets, useful for cheap server-side dispatch before full parsing.
-ENDPOINT_TAGS: frozenset[str] = frozenset({"connect", "user_message", "tool_result", "goodbye"})
+ENDPOINT_TAGS: frozenset[str] = frozenset({"connect", "user_message", "tool_result", "disconnect"})
 CORE_TAGS: frozenset[str] = frozenset({"token", "tool_call", "tool_result_event", "final", "error"})
 
 _endpoint_adapter: TypeAdapter[EndpointFrame] = TypeAdapter(EndpointFrame)

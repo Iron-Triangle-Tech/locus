@@ -1,0 +1,70 @@
+# Default configuration for the `core` service.
+#
+# Values here are non-secret defaults. Secrets (the link token, provider API
+# keys) are read from environment variables and intentionally NOT committed.
+#
+# Precedence (highest first):
+#   1. Environment variables prefixed LOCUS_CORE_* (e.g. LOCUS_CORE_HOST)
+#   2. This file
+#   3. Field defaults defined in core/settings.py
+
+[server]
+host = "127.0.0.1"
+port = 7100
+# Number of seconds an idle WebSocket is allowed to live before a ping closes it.
+ws_idle_timeout = 300
+
+[storage]
+# SQLite database path. ``sqlite+aiosqlite://`` prefix is added automatically.
+sqlite_path = "locus.db"
+
+[provider]
+# Which provider to use when a request asks for ``auto`` (one of the built-in
+# names or any name registered under [providers.<name>] below).
+default = "anthropic"
+# Model id per built-in provider. Override via env
+# LOCUS_CORE_PROVIDER_MODELS__ANTHROPIC etc. (see settings.py for env mapping).
+models = { anthropic = "claude-3-5-sonnet-20241022", openai = "gpt-4o", gemini = "gemini-1.5-flash" }
+
+# ---------------------------------------------------------------------------
+# Named, configured providers.
+#
+# Built-ins (anthropic, openai, gemini) are always available using the official
+# SDKs + their *_API_KEY env vars (ANTHROPIC_API_KEY, OPENAI_API_KEY,
+# GEMINI_API_KEY). The entries below register additional OpenAI-compatible
+# gateways under their own names (vLLM, LM Studio, LocalAI, Ollama OpenAI mode,
+# OpenRouter, etc.)
+#
+# Each entry:
+#   type     = "openai_compat"   (only adapter currently supported for custom)
+#   base_url = OpenAI-style Chat Completions base, ending before "/chat/..."
+#   api_key  = string; put the real key in a real env var via settings.py
+#   model    = default model id for this provider
+#
+# API keys are never committed. Set them via env (nested "__" delimiter;
+# env-suffix is lowercased, so "my_local" -> LOCUS_CORE_PROVIDERS__MY_LOCAL__API_KEY):
+#   LOCUS_CORE_PROVIDERS__MY_LOCAL__API_KEY=...
+# ---------------------------------------------------------------------------
+
+# Example (uncomment and edit to enable a local gateway):
+# [providers.my_local]
+# type = "openai_compat"
+# base_url = "http://localhost:1234/v1"
+# api_key = ""
+# model = "lmstudio/llama-3"
+
+# Example: OpenRouter as a named provider
+# [providers.openrouter]
+# type = "openai_compat"
+# base_url = "https://openrouter.ai/api/v1"
+# api_key = ""
+# model = "anthropic/claude-3.5-sonnet"
+
+[tools]
+# Root directory the built-in file tools may read/write. Sandbox boundary that
+# scopes the agent's on-disk working area.
+agent_root = "./workspace"
+# Maximum bytes the http_fetch tool will download.
+http_max_bytes = 1048576
+# Per-request timeout for the http_fetch tool, in seconds.
+http_timeout = 20.0
