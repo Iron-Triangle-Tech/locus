@@ -1,10 +1,7 @@
 """Neutral Provider protocol + internal message/tool types.
 
-The agent loop talks only to :class:`Provider`. Each concrete adapter in this
-package translates between these neutral types and its vendor's native shape.
-The internal canonical tool form is OpenAI-style function-calling JSON-schema
-(``ToolDef``); adapters marshal to/from Anthropic tool_use / Gemini
-function-calling at the edges.
+Agent loop talks only to :class:`Provider`. Adapters translate to/from vendor
+native shapes. Canonical tool form is OpenAI-style JSON-schema (``ToolDef``).
 """
 
 from __future__ import annotations

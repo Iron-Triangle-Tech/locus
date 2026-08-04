@@ -1,13 +1,7 @@
 """Core service settings.
 
-Loads defaults from ``core/config.toml`` and lets every field be overridden by
-``LOCUS_CORE_*`` environment variables using a ``__`` delimiter for nesting,
-so e.g. ``LOCUS_CORE_STORAGE__SQLITE_PATH`` overrides ``storage.sqlite_path``
-and ``LOCUS_CORE_PROVIDERS__MYLOCAL__API_KEY`` sets the api_key of the
-``my_local`` named provider.
-
-Secrets (the link token, provider API keys) are intentionally NOT in the
-committed config.toml; set them via env.
+Loads from ``core/config.toml`` with ``LOCUS_CORE_*`` env overrides (``__`` delimiter).
+Secrets (link token, API keys) via env only, not in config.toml.
 """
 
 from __future__ import annotations

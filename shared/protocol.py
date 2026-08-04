@@ -1,12 +1,7 @@
 """Wire protocol for the core <-> endpoint link.
 
-Everything that crosses the process boundary is a single JSON object carrying a
-discriminated ``type`` field. Both services import only from this module; no
-other cross-boundary types should leak.
-
-* All frames are JSON over WebSocket.
-* Tool-call/result shapes are provider-agnostic and OpenAI-style (JSON-schema
-  args) so the core stays neutral regardless of the backing provider.
+Single JSON objects with discriminated ``type`` field over WebSocket.
+Tool-call/result shapes are provider-agnostic OpenAI-style JSON-schema.
 """
 
 from __future__ import annotations
