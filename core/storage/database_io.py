@@ -33,7 +33,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from core.providers.base import AssistantTurn, ToolCall, ToolResultMessage
+from core.providers.base import AssistantTurn, ToolCall, ToolDef, ToolResultMessage
 
 __all__ = [
     "Base",
@@ -41,6 +41,7 @@ __all__ = [
     "Message",
     "Thread",
     "ToolCallRow",
+    "ToolDefRow",
     "ToolResultRow",
     "uuid4_str",
 ]
@@ -196,6 +197,33 @@ class ToolResultRow(Base):
     )
 
     thread: Mapped[Thread] = relationship(back_populates="tool_results")
+
+
+class ToolDefRow(Base):
+    """A built-in tool's metadata (its ``ToolDef``), seeded from the ROM.
+
+    The agent's knowledge of which tools exist and how to call them lives here,
+    not in Python source. Seeded at startup from ``core/tools.toml`` only when
+    a row of that ``name`` is missing (runtime edits persist). The registry
+    reads these rows to assemble the ``ToolDef`` list it advertises to the
+    provider; rows whose ``name`` has no matching runnable class are hidden.
+
+    Not attached to any thread -- this is a global table keyed by tool name.
+    """
+
+    __tablename__ = "tool_defs"
+
+    name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    parameters_json: Mapped[str] = mapped_column(
+        Text, nullable=False, default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -462,3 +490,69 @@ class MemoryStore:
                 )
             )
         return out
+
+    # ---- tool defs --------------------------------------------------------
+
+    async def list_tool_defs(self) -> list[ToolDef]:
+        """Return all tool def rows as :class:`ToolDef`, ordered by name.
+
+        Used by ``ToolRegistry.export_defs`` to assemble the catalog advertised
+        to the provider. Rows are global (no thread scoping).
+        """
+        async with self._sf() as session:
+            stmt = select(ToolDefRow).order_by(ToolDefRow.name)
+            rows = (await session.execute(stmt)).scalars().all()
+            return [
+                ToolDef(
+                    name=r.name,
+                    description=r.description,
+                    parameters=json.loads(r.parameters_json or "{}"),
+                )
+                for r in rows
+            ]
+
+    async def upsert_tool_def(self, tool_def: ToolDef) -> None:
+        """Insert or update a single tool def row.
+
+        Not used during seeding (seeding is INSERT-only), but exposed for
+        runtime administration / tests.
+        """
+        async with self._sf() as session:
+            await session.merge(
+                ToolDefRow(
+                    name=tool_def.name,
+                    description=tool_def.description,
+                    parameters_json=json.dumps(tool_def.parameters),
+                )
+            )
+            await session.commit()
+
+    async def insert_missing_tool_defs(self, defs: list[ToolDef]) -> list[str]:
+        """Insert a def row for each ``name`` not already present.
+
+        INSERT-only: existing rows are never overwritten, so any runtime edits
+        a user made via :meth:`upsert_tool_def` survive restarts. Returns the
+        list of names actually inserted (callers log / assert on it).
+        """
+        if not defs:
+            return []
+        async with self._sf() as session:
+            existing = set(
+                (await session.execute(select(ToolDefRow.name))).scalars().all()
+            )
+            missing: list[ToolDefRow] = []
+            for d in defs:
+                if d.name in existing:
+                    continue
+                missing.append(
+                    ToolDefRow(
+                        name=d.name,
+                        description=d.description,
+                        parameters_json=json.dumps(d.parameters),
+                    )
+                )
+            if not missing:
+                return []
+            session.add_all(missing)
+            await session.commit()
+            return [m.name for m in missing]

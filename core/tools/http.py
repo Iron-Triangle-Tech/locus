@@ -1,8 +1,24 @@
 """Built-in HTTP fetch tool (``http_fetch``).
 
-A single :class:`core.tools.registry.Tool` wrapping :mod:`httpx`. The model
-can request a URL with an allow-listed method, optional headers/body, and an
-optional timeout capped by configuration
+A single :class:`core.tools.registry.Tool` wrapping :mod:`httpx` -- BEHAVIOR
+ONLY: just ``name`` + an async ``run``. The metadata advertised to the provider
+(``description`` + ``parameters`` JSON Schema) lives in ``core/tools.toml``
+(the "ROM") and is loaded into the ``tool_defs`` memory table at startup --
+NOT in this file.
+
+Rules (confirmed):
+
+* Any HTTP response is returned **normally** (its body is what the model
+  reads). A non-2xx status is NOT ``is_error``; the response status line +
+  body are handed back so the model can react. Only *network-level* failures
+  (DNS, connection, timeout, transport) become ``is_error=True``.
+* Method is validated against an allow-list (GET/POST/PUT/PATCH/DELETE/HEAD).
+  Anything else -> ``is_error``.
+* Sizes/timeouts are capped by :class:`core.settings.ToolsSettings`:
+  ``http_max_bytes`` caps the returned body (oversize -> truncated with a
+  marker); ``http_timeout`` caps the caller-supplied ``timeout``. The tool
+  never lets the model raise those ceilings.
+* No SSRF guard in the first feature -- any host is permitted.
 """
 
 from __future__ import annotations
@@ -17,30 +33,6 @@ __all__ = ["HttpFetch"]
 _ALLOWED_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"})
 
 
-_SCHEMA: dict = {
-    "type": "object",
-    "properties": {
-        "url": {"type": "string", "description": "Absolute HTTP(S) URL to fetch."},
-        "method": {
-            "type": "string",
-            "description": "HTTP method. One of GET/POST/PUT/PATCH/DELETE/HEAD.",
-            "default": "GET",
-        },
-        "headers": {
-            "type": "object",
-            "description": "Extra request headers.",
-            "additionalProperties": {"type": "string"},
-        },
-        "body": {"type": "string", "description": "Request body (for methods that take one)."},
-        "timeout": {
-            "type": "number",
-            "description": "Per-request timeout in seconds, capped by the server.",
-        },
-    },
-    "required": ["url"],
-}
-
-
 class HttpFetch(Tool):
     """``http_fetch`` -- single-shot HTTP request returning the response body.
 
@@ -50,8 +42,6 @@ class HttpFetch(Tool):
     """
 
     name = "http_fetch"
-    
-    parameters = _SCHEMA
 
     def __init__(self, *, max_bytes: int, default_timeout: float) -> None:
         self._max_bytes = int(max_bytes)
@@ -86,7 +76,9 @@ class HttpFetch(Tool):
         # Read up to max_bytes+1 so we can detect oversize and marker-truncate.
         cap = self._max_bytes
         try:
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            async with httpx.AsyncClient(
+                timeout=timeout, follow_redirects=True
+            ) as client:
                 resp = await client.request(
                     method,
                     url,

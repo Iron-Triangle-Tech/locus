@@ -98,11 +98,14 @@ class CoreSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        # Order = precedence (first wins). Env overrides the TOML file overrides
-        # the model defaults (the latter come for free from the field defaults).
+        # Order = precedence (first wins): env -> explicit constructor args
+        # -> TOML file -> field defaults. Putting ``init_settings`` ahead of the
+        # TOML source means tests that pass e.g. ``storage=StorageSettings(
+        # sqlite_path='...')`` actually win over the committed config.toml
+        # (which would otherwise force every test onto the shared ``locus.db``).
         toml_path = Path(DEFAULT_CONFIG_PATH)
         toml_source = TomlConfigSettingsSource(settings_cls, toml_path)
-        return (env_settings, toml_source, init_settings)
+        return (env_settings, init_settings, toml_source)
 
     def resolved_model(self, provider: str) -> str:
         """Resolve a concrete model id for a provider name.

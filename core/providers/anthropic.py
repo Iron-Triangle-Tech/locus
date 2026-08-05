@@ -124,7 +124,8 @@ class AnthropicProvider:
         prior_tool_results: list[ToolResultMessage],
     ) -> ProviderResponse:
         messages = _history_to_anthropic(history, prior_tool_results)
-        messages.append({"role": "user", "content": user.content})
+        if user.content:
+            messages.append({"role": "user", "content": user.content})
         kwargs: dict[str, Any] = {
             "model": self.model,
             "max_tokens": 4096,
@@ -159,7 +160,8 @@ class AnthropicProvider:
         prior_tool_results: list[ToolResultMessage],
     ) -> AsyncIterator[ProviderStreamChunk]:
         messages = _history_to_anthropic(history, prior_tool_results)
-        messages.append({"role": "user", "content": user.content})
+        if user.content:
+            messages.append({"role": "user", "content": user.content})
         kwargs: dict[str, Any] = {
             "model": self.model,
             "max_tokens": 4096,

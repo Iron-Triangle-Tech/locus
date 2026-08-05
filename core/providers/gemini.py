@@ -89,7 +89,8 @@ def _build_contents(
     for tr in prior_tool_results:
         if tr.name not in paired:
             contents.append(_tool_result_to_gemini(tr))
-    contents.append({"role": "user", "parts": [{"text": user.content}]})
+    if user.content:
+        contents.append({"role": "user", "parts": [{"text": user.content}]})
     return contents
 
 

@@ -98,7 +98,8 @@ def _build_messages(
             messages.append(
                 {"role": "tool", "tool_call_id": tr.call_id, "content": tr.content}
             )
-    messages.append({"role": "user", "content": user.content})
+    if user.content:
+        messages.append({"role": "user", "content": user.content})
     return messages
 
 

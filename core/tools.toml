@@ -1,0 +1,64 @@
+# core/tools.toml -- the "ROM" for the core's built-in tool kit.
+#
+# This is the SEED of tool metadata (the agent's knowledge of which tools
+# exist and how to call them). At startup, core parses this file into
+# ToolDef{name, description, parameters} dicts and INSERTs them into the
+# ``tool_defs`` memory table ONLY WHEN A ROW OF THAT NAME IS MISSING.
+# Runtime edits to ``tool_defs`` rows persist across restarts; this file
+# only fills gaps. "ROM" is a metaphor, not immutability -- edit freely.
+#
+# Schema of each [[tools]] entry:
+#   name        = str   ; matches a tool's `name` attribute in its Python impl
+#   description = str   ; what the model sees as the tool's purpose
+#   parameters  = <inline JSON Schema> (a TOML table) for the args object
+#
+# A tool with a Python runnable but no entry here is NOT advertised to the
+# provider (warned at startup). An entry with no matching runnable is hidden
+# (also warned). The advertised set is the intersection.
+
+[[tools]]
+name = "file_read"
+description = "Read a UTF-8 (or other encoded) text file relative to the agent's sandboxed root directory. Oversize files are truncated to max_bytes with a trailing marker. Returns the file's text content."
+[tools.parameters]
+type = "object"
+required = ["path"]
+[tools.parameters.properties]
+path = { type = "string", description = "Relative path under the agent root." }
+encoding = { type = "string", description = "Text encoding to use.", default = "utf-8" }
+max_bytes = { type = "integer", description = "Max bytes to return; oversize files are truncated.", default = 65536 }
+
+[[tools]]
+name = "file_write"
+description = "Write text to a file relative to the agent's sandboxed root directory. Creates missing parent directories. Overwrites any existing file."
+[tools.parameters]
+type = "object"
+required = ["path", "content"]
+[tools.parameters.properties]
+path = { type = "string", description = "Relative path under the agent root." }
+content = { type = "string", description = "Text to write (overwrites)." }
+encoding = { type = "string", description = "Text encoding to use.", default = "utf-8" }
+
+[[tools]]
+name = "file_list"
+description = "List entries in a directory relative to the agent's sandboxed root directory. Returns one line per entry: 'dir'/'file'/'other' followed by a tab and the name."
+[tools.parameters]
+type = "object"
+required = []
+[tools.parameters.properties]
+path = { type = "string", description = "Relative directory path under the agent root.", default = "" }
+
+[[tools]]
+name = "http_fetch"
+description = "Fetch a URL over HTTP(S) and return the response body. Any HTTP status code is returned normally (including non-2xx); only network failures (DNS, connection, timeout) are reported as errors. The returned body is capped in size and truncated with a marker if larger."
+[tools.parameters]
+type = "object"
+required = ["url"]
+[tools.parameters.properties]
+url = { type = "string", description = "Absolute HTTP(S) URL to fetch." }
+method = { type = "string", description = "HTTP method. One of GET/POST/PUT/PATCH/DELETE/HEAD.", default = "GET" }
+body = { type = "string", description = "Request body (for methods that take one)." }
+timeout = { type = "number", description = "Per-request timeout in seconds, capped by the server." }
+[tools.parameters.properties.headers]
+type = "object"
+description = "Extra request headers."
+additionalProperties = { type = "string" }
