@@ -122,8 +122,9 @@ class AppState:
         await seed_missing(self.store, rom_defs)
 
         # Built-in runnables: file (read/write/list) + http_fetch, sandboxed
-        # per settings.tools.
-        agent_root = Path(self.settings.tools.agent_root).resolve()
+        # per settings.tools. ``resolve()`` on a config string is a one-shot
+        # startup metadata op, not per-request I/O; noqa the async-path rule.
+        agent_root = Path(self.settings.tools.agent_root).resolve()  # noqa: ASYNC240
         for tool in default_file_tools(agent_root):
             self.registry.register_compiled_tools(tool)
         self.registry.register_compiled_tools(
@@ -284,8 +285,10 @@ def _make_on_user_message(state: AppState):  # type: ignore[no-untyped-def]
             config=state.loop_cfg,
         )
         # Fire-and-forget: events flow back over the bus -> WS pump. Errors
-        # are emitted on the bus by the loop itself, not raised here.
-        asyncio.create_task(
+        # are emitted on the bus by the loop itself, not raised here. We
+        # deliberately don't retain the task ref -- the loop drives itself to
+        # completion and the bus is its sink, so storing turns would leak.
+        _task = asyncio.create_task(  # noqa: RUF006 - intentional fire-and-forget
             loop.run_agent_turn(thread_id, frame.content, provider_name=provider),
             name=f"agent-turn-{thread_id}",
         )

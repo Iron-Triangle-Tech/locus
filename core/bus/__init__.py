@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator
 
@@ -70,10 +71,8 @@ class EventBus:
         self._subs = [s for s in self._subs if s[0] is not target]
         if len(self._subs) != before:
             # Signal the consumer's iterator to exit if it is awaiting.
-            try:
+            with contextlib.suppress(asyncio.QueueFull):
                 target.put_nowait(None)
-            except asyncio.QueueFull:
-                pass
 
     def publish(self, frame: CoreFrame) -> None:
         """Fan-out ``frame`` to every matching subscriber, drop-oldest on full.

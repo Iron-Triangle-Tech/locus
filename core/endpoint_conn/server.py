@@ -47,6 +47,7 @@ call to the endpoint that advertised the tool.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from typing import TYPE_CHECKING
 
@@ -255,10 +256,8 @@ async def handle_link(
     headers = {k: v for k, v in websocket.headers.items()}
     if not expected_token or not check_token(headers, expected_token):
         _log.warning("endpoint link rejected: bad/missing token")
-        try:
+        with contextlib.suppress(Exception):  # pragma: no cover - defensive
             await websocket.close(code=1008, reason="unauthorized")
-        except Exception:  # pragma: no cover - defensive
-            pass
         return
 
     sub = bus.subscribe()
@@ -270,7 +269,7 @@ async def handle_link(
     try:
         # Either side can end the connection; whichever finishes first wins,
         # and we cancel the other.
-        done, pending = await asyncio.wait(
+        _done, pending = await asyncio.wait(
             {pump_task, reader_task}, return_when=asyncio.FIRST_COMPLETED
         )
         for t in pending:
@@ -365,12 +364,10 @@ async def _reader(
 
 async def _send_error(websocket: WebSocket, message: str, *, thread_id: str | None = None) -> None:
     """Best-effort push an :class:`ErrorEvent` to the endpoint."""
-    try:
+    with contextlib.suppress(Exception):  # pragma: no cover - defensive
         await websocket.send_text(
             dump(ErrorEvent(thread_id=thread_id, message=message, fatal=False))
         )
-    except Exception:  # pragma: no cover - defensive
-        pass
 
 
 # A callable that takes an inbound UserMessage and kicks off an agent turn on

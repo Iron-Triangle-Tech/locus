@@ -116,7 +116,7 @@ class _AnthStream:
         try:
             return next(self._it)
         except StopIteration:
-            raise StopAsyncIteration
+            raise StopAsyncIteration from None
 
     async def get_final_message(self) -> Any:
         return Obj(stop_reason=self._final_stop_reason)

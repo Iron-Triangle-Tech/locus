@@ -94,10 +94,7 @@ class HttpFetch(Tool):
             )
 
         truncated = len(raw) > cap
-        if truncated:
-            body_bytes = raw[:cap]
-        else:
-            body_bytes = raw
+        body_bytes = raw[:cap] if truncated else raw
         # Decode as UTF-8 with replacement so binary bodies don't blow up;
         # the model gets best-effort text plus a truncation marker when oversize.
         text = body_bytes.decode("utf-8", errors="replace")

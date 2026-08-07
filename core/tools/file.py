@@ -26,6 +26,7 @@ Sandbox rules (enforced on every call):
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 
 import anyio
@@ -41,10 +42,7 @@ def _resolve(root: Path, raw: str) -> Path | None:
     Returns ``None`` (so the caller can emit an ``is_error`` ToolResult) on any
     rejection: absolute path, parent escape, or a symlink target outside root.
     """
-    if not raw:
-        candidate = root
-    else:
-        candidate = root / raw
+    candidate = root if not raw else root / raw
     try:
         resolved = candidate.resolve()
     except (OSError, RuntimeError):
@@ -64,10 +62,8 @@ class _FileBase:
             # Create the sandbox root lazily so the agent can write into it
             # without the operator precreating the dir. Best-effort; if it
             # fails we let the first tool call surface the OSError as is_error.
-            try:
+            with contextlib.suppress(OSError):
                 agent_root.mkdir(parents=True, exist_ok=True)
-            except OSError:
-                pass
         self._root: Path = agent_root
 
 
@@ -93,7 +89,11 @@ class FileRead(_FileBase, Tool):
         except OSError as e:
             return ToolResult(content=f"read failed: {e}", is_error=True)
         try:
-            text, truncated = await anyio.to_thread.run_sync(self._decode, data, enc, max_bytes)
+            # ``_decode`` already folds the truncation marker into ``text``
+            # when oversize; the returned flag is informational only.
+            text, _truncated = await anyio.to_thread.run_sync(
+                self._decode, data, enc, max_bytes
+            )
         except (LookupError, UnicodeDecodeError) as e:
             return ToolResult(content=f"decode failed ({enc}): {e}", is_error=True)
         return ToolResult(content=text, is_error=False)

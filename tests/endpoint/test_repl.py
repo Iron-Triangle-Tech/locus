@@ -68,7 +68,7 @@ def _patch_stdin(lines: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
         try:
             return next(it)
         except StopIteration:
-            raise EOFError
+            raise EOFError from None
 
     monkeypatch.setattr(repl_mod, "_read_line", fake_read_line)
 

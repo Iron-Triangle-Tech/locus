@@ -18,6 +18,7 @@ Covers Step 8 wiring:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -291,7 +292,7 @@ class _FakeWebSocket:
 
 async def _drain_one(ws: _FakeWebSocket) -> str:
     """Wait for the next frame the link sends to the endpoint."""
-    while not ws.sent:
+    while not ws.sent:  # noqa: ASYNC110 - test infra polls a list mutated by another task
         await asyncio.sleep(0.01)
     return ws.sent[0]
 
@@ -509,10 +510,8 @@ class TestWSLink:
 
 async def _quiet(task: asyncio.Task[Any]) -> None:
     """Await a cancelled task, swallowing CancelledError/exceptions."""
-    try:
+    with contextlib.suppress(asyncio.CancelledError, Exception):
         await task
-    except (asyncio.CancelledError, Exception):
-        pass
 
 
 # --------------------------------------------------------------------------- #

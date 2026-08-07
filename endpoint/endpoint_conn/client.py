@@ -33,10 +33,11 @@ Design notes:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, Any
 
 from shared.protocol import (
     Connect,
@@ -61,7 +62,7 @@ class AuthError(RuntimeError):
 
 # An ad-hoc tool runnable the endpoint registers: takes the parsed arguments
 # dict and returns either a string (ok) or raises (the result is an error).
-AdhocTool: TypeAlias = Callable[[dict[str, Any]], Awaitable[str]]
+type AdhocTool = Callable[[dict[str, Any]], Awaitable[str]]
 
 
 class EndpointClient:
@@ -167,10 +168,8 @@ class EndpointClient:
         self._closed = True
         if self._ws is None:
             return
-        try:
+        with contextlib.suppress(Exception):  # pragma: no cover - defensive on teardown
             await self._ws.close()
-        except Exception:  # pragma: no cover - defensive on teardown
-            pass
         self._ws = None
 
     # ------------------------------------------------------------------ #
