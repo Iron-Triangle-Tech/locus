@@ -1,0 +1,36 @@
+# Default configuration for the `endpoint` service.
+#
+# Values here are non-secret defaults. The shared bearer token for the
+# core<->endpoint link is read from an environment variable and intentionally
+# NOT committed here (same convention as core).
+#
+# Precedence (highest first):
+#   1. Environment variables prefixed LOCUS_ENDPOINT_* (e.g. LOCUS_ENDPOINT_CORE__URL)
+#   2. This file
+#   3. Field defaults defined in endpoint/settings.py
+
+[server]
+# The endpoint is CLI-driven today and serves nothing, so host/port are unused
+# in the first feature. Kept so a future webui can reuse this settings object.
+host = "127.0.0.1"
+port = 7101
+
+[core]
+# Full WS URL of the core service's link endpoint. Use ws:// for plain and
+# wss:// for TLS. The endpoint authenticates the upgrade by carrying the shared
+# bearer token in the Authorization header.
+url = "ws://localhost:7100/link"
+# Seconds to wait for the WS handshake / first frame before giving up.
+connect_timeout = 10.0
+# Seconds an idle link may live before the endpoint tears it down.
+idle_timeout = 300.0
+# Outbound proxy for the link. null (default) -> never proxy; a URL string pins
+# a proxy; true honors ALL_PROXY/HTTPS_PROXY env. A service-to-service link to a
+# known host is NOT proxied by default, regardless of dev-machine env vars.
+proxy = "null"
+
+[ui]
+# Print tool-call argument JSON inline (vs. just the tool name).
+show_tool_args = true
+# Stream assistant tokens as they arrive (vs. buffering until the final frame).
+stream_tokens = true
