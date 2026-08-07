@@ -13,7 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -54,6 +54,17 @@ class CoreSettings(BaseModel):
     # ``bool`` is too wide for ``websockets.connect(proxy=...)``; only ``True``
     # (honor env) is meaningful, mirroring the websockets contract.
     proxy: str | Literal[True] | None = None
+
+    @field_validator("proxy", mode="before")
+    @classmethod
+    def _normalize_proxy(cls, v: object) -> str | Literal[True] | None:
+        # TOML has no null literal, so ``proxy = "null"`` or ``proxy = ''`` load
+        # as strings ("null" / ""), which the websockets client then rejects
+        # with a cryptic "scheme isn't supported" -- they really mean "no
+        # proxy". Coerce those to None; a non-empty proxy URL passes through.
+        if isinstance(v, str) and (not v.strip() or v.strip().lower() == "null"):
+            return None
+        return v  # type: ignore[return-value]
 
 
 class UISettings(BaseModel):

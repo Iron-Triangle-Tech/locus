@@ -17,6 +17,8 @@ from pydantic_settings import (
 )
 from pydantic_settings.sources import TomlConfigSettingsSource
 
+from shared.paths import db_path, ensure_data_dir, workspace_path
+
 HERE = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = HERE / "config.toml"
 
@@ -31,7 +33,10 @@ class ServerSettings(BaseModel):
 
 
 class StorageSettings(BaseModel):
-    sqlite_path: str = "locus.db"
+    # Default lives under the per-user ~/Locus data dir, so the DB survives
+    # across CWDs and isn't dropped in whatever directory launched the server.
+    # Tests override with ":memory:" or an explicit path (init arg beats TOML).
+    sqlite_path: str = str(db_path())
 
 
 class ProviderSettings(BaseModel):
@@ -62,7 +67,8 @@ class NamedProviderSettings(BaseModel):
 
 
 class ToolsSettings(BaseModel):
-    agent_root: str = "./workspace"
+    # Sandbox root under ~/Locus/workspace; created by ensure_data_dir().
+    agent_root: str = str(workspace_path())
     http_max_bytes: int = 1048576
     http_timeout: float = 20.0
 
@@ -131,7 +137,11 @@ def get_settings() -> CoreSettings:
     """Construct the CoreSettings, loading from config.toml + env.
 
     A fresh instance per call so tests can monkeypatch env between cases.
+    First-run bootstrap: make sure the per-user ~/Locus data dir + workspace
+    exist before building settings, so the file-tool sandbox and SQLite DB
+    have a home even on a fresh install. Idempotent; near-free after first call.
     """
+    ensure_data_dir()
     return CoreSettings()
 
 

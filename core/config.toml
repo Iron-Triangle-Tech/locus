@@ -15,8 +15,9 @@ port = 7100
 ws_idle_timeout = 300
 
 [storage]
-# SQLite database path. ``sqlite+aiosqlite://`` prefix is added automatically.
-sqlite_path = "locus.db"
+# SQLite database path. Default: per-user ~/Locus/locus.db.sqlite
+# (see shared.paths). Override here with an absolute or ":memory:" path, or via
+# LOCUS_CORE_STORAGE__SQLITE_PATH. Leave unset to use the per-user default.
 
 [provider]
 # Which provider to use when a request asks for ``auto`` (one of the built-in
@@ -62,8 +63,9 @@ models = { anthropic = "claude-3-5-sonnet-20241022", openai = "gpt-4o", gemini =
 
 [tools]
 # Root directory the built-in file tools may read/write. Sandbox boundary that
-# scopes the agent's on-disk working area.
-agent_root = "./workspace"
+# scopes the agent's on-disk working area. Default: ~/Locus/workspace
+# (see shared.paths). Override with an absolute path here or via
+# LOCUS_CORE_TOOLS__AGENT_ROOT.
 # Maximum bytes the http_fetch tool will download.
 http_max_bytes = 1048576
 # Per-request timeout for the http_fetch tool, in seconds.
