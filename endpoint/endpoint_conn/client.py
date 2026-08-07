@@ -35,23 +35,22 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Any
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from shared.protocol import (
     Connect,
-    ToolCallEvent,
     ErrorEvent,
+    ToolCallEvent,
     ToolResult,
     UserMessage,
     load_core,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Awaitable, Callable
-
     from endpoint.settings import EndpointSettings
 
-__all__ = ["EndpointClient", "AuthError", "AdhocTool"]
+__all__ = ["AdhocTool", "AuthError", "EndpointClient"]
 
 _log = logging.getLogger(__name__)
 
@@ -62,7 +61,7 @@ class AuthError(RuntimeError):
 
 # An ad-hoc tool runnable the endpoint registers: takes the parsed arguments
 # dict and returns either a string (ok) or raises (the result is an error).
-AdhocTool = "Callable[[dict[str, Any]], Awaitable[str]]"
+AdhocTool: TypeAlias = Callable[[dict[str, Any]], Awaitable[str]]
 
 
 class EndpointClient:
@@ -88,10 +87,10 @@ class EndpointClient:
 
     def __init__(
         self,
-        settings: "EndpointSettings",
+        settings: EndpointSettings,
         *,
         endpoint_id: str | None = None,
-        adhoc_tools: dict[str, "AdhocTool"] | None = None,
+        adhoc_tools: dict[str, AdhocTool] | None = None,
     ) -> None:
         self._settings = settings
         self._endpoint_id = endpoint_id or "endpoint-1"
@@ -105,7 +104,7 @@ class EndpointClient:
     # Lifecycle
     # ------------------------------------------------------------------ #
 
-    async def __aenter__(self) -> "EndpointClient":
+    async def __aenter__(self) -> EndpointClient:
         await self.connect()
         return self
 
@@ -193,16 +192,14 @@ class EndpointClient:
         if self._ws is None:
             raise RuntimeError("EndpointClient not connected (call connect() first)")
         await self._send_raw(
-            UserMessage(
-                content=content, thread_id=thread_id, provider=provider
-            ).model_dump_json()
+            UserMessage(content=content, thread_id=thread_id, provider=provider).model_dump_json()
         )
 
     # ------------------------------------------------------------------ #
     # Inbound: event stream
     # ------------------------------------------------------------------ #
 
-    async def events(self) -> "AsyncIterator[Any]":
+    async def events(self) -> AsyncIterator[Any]:
         """Yield parsed core->endpoint frames until the link closes.
 
         ``ToolCallEvent`` frames targeting an ad-hoc tool the endpoint
@@ -273,7 +270,7 @@ class EndpointClient:
 # ----------------------------------------------------------------------- #
 
 
-def _adhoc_defs(adhoc: dict[str, "AdhocTool"]) -> list:
+def _adhoc_defs(adhoc: dict[str, AdhocTool]) -> list:
     """Build :class:`shared.protocol.AdhocTool` defs from registered runnables.
 
     In v1 the endpoint's ad-hoc tools are simple callables; they declare their
@@ -290,9 +287,7 @@ def _adhoc_defs(adhoc: dict[str, "AdhocTool"]) -> list:
         if schema is None:
             # No declared schema -> skip rather than fabricate one; core
             # would offer the model a tool it can't call meaningfully.
-            _log.warning(
-                "ad-hoc tool %r has no `schema` attribute; not advertising it", name
-            )
+            _log.warning("ad-hoc tool %r has no `schema` attribute; not advertising it", name)
             continue
         # ``schema`` is expected to be a ToolSchema-shaped dict; build the
         # pydantic model defensively so a bad registration is caught here,

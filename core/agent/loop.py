@@ -42,19 +42,10 @@ import logging
 import uuid
 from typing import Protocol, runtime_checkable
 
-from shared.protocol import (
-    ErrorEvent,
-    FinalEvent,
-    TokenEvent,
-    ToolCallEvent,
-    ToolResultEvent,
-)
-
 from core.providers import get_provider
 from core.providers.base import (
     AssistantTurn,
     Provider,
-    ProviderStreamChunk,
     ToolCall,
     ToolDef,
     ToolResultMessage,
@@ -63,6 +54,13 @@ from core.providers.base import (
 from core.settings import CoreSettings
 from core.storage.database_io import MemoryStore
 from core.tools.registry import ToolRegistry
+from shared.protocol import (
+    ErrorEvent,
+    FinalEvent,
+    TokenEvent,
+    ToolCallEvent,
+    ToolResultEvent,
+)
 
 __all__ = ["AdhocDispatcher", "AgentLoop", "LoopConfig", "NoAdhocDispatcher"]
 
@@ -166,9 +164,7 @@ class AgentLoop:
         try:
             provider = get_provider(provider_name, self._settings)
         except (KeyError, ValueError) as e:
-            self._emit(
-                ErrorEvent(thread_id=thread_id, message=f"provider error: {e}", fatal=True)
-            )
+            self._emit(ErrorEvent(thread_id=thread_id, message=f"provider error: {e}", fatal=True))
             return
 
         tools = self._registry.export_defs()
@@ -181,8 +177,12 @@ class AgentLoop:
 
             try:
                 text, tool_calls, finish = await self._stream_one(
-                    provider, thread_id, history,
-                    content if _ == 0 else "", prior_results, all_defs,
+                    provider,
+                    thread_id,
+                    history,
+                    content if _ == 0 else "",
+                    prior_results,
+                    all_defs,
                 )
                 if tool_calls:
                     # Pin Core-UUID ids onto the calls and persist atomically.
@@ -252,7 +252,9 @@ class AgentLoop:
         Core UUID on the way out so storage / bus never depend on vendor ids.
         """
         text_parts: list[str] = []
-        calls_by_idx: dict[int, ToolCall] = {}
+        # Keyed by the call's id (a str), or a synthetic "idxN" when the
+        # adapter streams a tool call before emitting its id.
+        calls_by_idx: dict[str, ToolCall] = {}
         finish = "stop"
 
         user = UserTurn(content=user_content) if user_content else UserTurn(content="")

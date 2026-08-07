@@ -30,7 +30,7 @@ class AssistantTurn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     text: str = ""
-    tool_calls: list["ToolCall"] = []
+    tool_calls: list[ToolCall] = []
 
 
 class ToolCall(BaseModel):

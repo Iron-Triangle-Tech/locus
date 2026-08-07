@@ -26,22 +26,17 @@ from typing import Any
 import httpx
 import pytest
 
-from core.app import AppState, app_factory, _make_on_user_message  # type: ignore[attr-defined]
-from core.bus import EventBus
-from core.endpoint_conn.server import LinkRegistry, WSLinkAdhocDispatcher, handle_link
+from core.app import AppState, _make_on_user_message, app_factory  # type: ignore[attr-defined]
+from core.endpoint_conn.server import WSLinkAdhocDispatcher, handle_link
 from core.providers.base import ToolCall, ToolResultMessage
 from core.settings import CoreSettings, StorageSettings, ToolsSettings
 from shared.auth import bearer_header
 from shared.protocol import (
     Connect,
-    ErrorEvent,
     FinalEvent,
-    ToolCallEvent,
     ToolResult,
     UserMessage,
-    dump,
 )
-
 
 # --------------------------------------------------------------------------- #
 # Settings / fixtures
@@ -83,9 +78,7 @@ class TestAppStateStart:
 
     async def test_defs_persisted_in_store(self, app_state: AppState) -> None:
         defs = await app_state.store.list_tool_defs()
-        assert {d.name for d in defs} >= {
-            "file_read", "file_write", "file_list", "http_fetch"
-        }
+        assert {d.name for d in defs} >= {"file_read", "file_write", "file_list", "http_fetch"}
 
 
 # --------------------------------------------------------------------------- #
@@ -103,9 +96,7 @@ class TestREST:
         try:
             app = app_factory(state)
             transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport, base_url="http://test"
-            ) as c:
+            async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
                 yield c
         finally:
             await state.stop()
@@ -158,7 +149,8 @@ class TestREST:
 
 
 async def _ws_upgrade(
-    app, headers: list[tuple[bytes, bytes]]  # type: ignore[no-untyped-def]
+    app,
+    headers: list[tuple[bytes, bytes]],  # type: ignore[no-untyped-def]
 ) -> list[dict[str, Any]]:
     """Issue a websocket handshake against ``app`` over ASGI, return ASGI events.
 
@@ -251,8 +243,9 @@ class TestWSAuth:
         finally:
             await state.stop()
         assert any(e["type"] == "websocket.accept" for e in events)
-        assert not any(e["type"] == "websocket.http.response.start" and e["status"] == 403
-                      for e in events)
+        assert not any(
+            e["type"] == "websocket.http.response.start" and e["status"] == 403 for e in events
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -328,9 +321,7 @@ class TestWSLink:
             ws.feed(Connect(endpoint_id="e1").model_dump_json())
             # Give the reader a beat to consume Connect, then publish an event.
             await asyncio.sleep(0.05)
-            state.bus.publish(
-                FinalEvent(thread_id="t1", text="hello world")
-            )
+            state.bus.publish(FinalEvent(thread_id="t1", text="hello world"))
             try:
                 raw = await asyncio.wait_for(_drain_one(ws), timeout=2.0)
                 frame = json.loads(raw)
@@ -380,9 +371,7 @@ class TestWSLink:
                 )
             )
             # Send a ToolResult as the first frame; not a Connect.
-            ws.feed(
-                ToolResult(call_id="x", ok=True, output="y").model_dump_json()
-            )
+            ws.feed(ToolResult(call_id="x", ok=True, output="y").model_dump_json())
             try:
                 raw = await asyncio.wait_for(_drain_one(ws), timeout=2.0)
                 frame = json.loads(raw)
@@ -432,11 +421,7 @@ class TestWSLink:
             assert state.link_registry.pending == 1
 
             # Endpoint returns the result; the reader resolves the future.
-            ws.feed(
-                ToolResult(
-                    call_id=call_id, ok=True, output="42"
-                ).model_dump_json()
-            )
+            ws.feed(ToolResult(call_id=call_id, ok=True, output="42").model_dump_json())
 
             msg = await asyncio.wait_for(dispatch_task, timeout=2.0)
             assert msg.call_id == call_id
@@ -511,9 +496,7 @@ class TestWSLink:
             )
             ws.feed(Connect(endpoint_id="e1").model_dump_json())
             await asyncio.sleep(0.05)
-            ws.feed(
-                UserMessage(content="hello", thread_id="t9").model_dump_json()
-            )
+            ws.feed(UserMessage(content="hello", thread_id="t9").model_dump_json())
             await asyncio.sleep(0.1)
             assert len(received) == 1
             assert received[0].content == "hello"
@@ -556,14 +539,14 @@ class TestOnUserMessage:
         errs = [f for f in frames if getattr(f, "type", None) == "error"]
         assert errs and errs[0].fatal is True
 
-    async def test_creates_thread_when_no_thread_id(
-        self, app_state: AppState
-    ) -> None:
+    async def test_creates_thread_when_no_thread_id(self, app_state: AppState) -> None:
         # Substitute the loop's run_agent_turn with a no-op so we don't need
         # a real provider; we only assert thread creation happens.
         created: list[str] = []
 
-        async def _noop_run(self: Any, thread_id: str, content: str, *, provider_name: str = "auto") -> None:
+        async def _noop_run(
+            self: Any, thread_id: str, content: str, *, provider_name: str = "auto"
+        ) -> None:
             created.append(thread_id)
 
         import core.app as app_mod

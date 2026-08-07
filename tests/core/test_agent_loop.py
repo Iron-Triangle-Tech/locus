@@ -46,14 +46,16 @@ class FakeProvider:
         self._scripts = list(scripts)
         self.calls = 0
 
-    async def complete(self, history, user, tools, prior_tool_results):  # noqa: ANN001
+    async def complete(self, history, user, tools, prior_tool_results):
         raise NotImplementedError
 
-    def stream(self, history, user, tools, prior_tool_results) -> AsyncIterator[ProviderStreamChunk]:  # noqa: ANN001
+    def stream(
+        self, history, user, tools, prior_tool_results
+    ) -> AsyncIterator[ProviderStreamChunk]:
         self.calls += 1
         return self._iter(self._scripts.pop(0))
 
-    async def _iter(self, chunks) -> AsyncIterator[ProviderStreamChunk]:  # noqa: ANN001
+    async def _iter(self, chunks) -> AsyncIterator[ProviderStreamChunk]:
         for c in chunks:
             yield c
 
@@ -79,7 +81,9 @@ async def env(tmp_path: Path):
     bus.close()
 
 
-async def _run_and_collect(loop: AgentLoop, thread_id: str, content: str, *, provider_name: str = "auto") -> list:
+async def _run_and_collect(
+    loop: AgentLoop, thread_id: str, content: str, *, provider_name: str = "auto"
+) -> list:
     """Run a turn and collect ALL frames the loop published to the bus."""
     frames: list = []
     orig = loop._bus.publish  # type: ignore[attr-defined]
@@ -151,7 +155,8 @@ class TestBuiltInToolTurn:
                     ProviderStreamChunk(token="writing"),
                     ProviderStreamChunk(
                         tool_call=ToolCall(
-                            id="p1", name="file_write",
+                            id="p1",
+                            name="file_write",
                             arguments={"path": "a.txt", "content": "data"},
                         )
                     ),
@@ -163,9 +168,11 @@ class TestBuiltInToolTurn:
                 ],
             ],
         )
-        loop = AgentLoop(settings=settings, store=store, registry=reg, bus=bus,
-                         config=LoopConfig(max_iters=4))
+        loop = AgentLoop(
+            settings=settings, store=store, registry=reg, bus=bus, config=LoopConfig(max_iters=4)
+        )
         import core.agent.loop as loop_mod
+
         orig = loop_mod.get_provider
         loop_mod.get_provider = lambda name, settings: provider
         try:
@@ -198,8 +205,7 @@ class TestAdhocToolTurn:
             scripts=[
                 [
                     ProviderStreamChunk(
-                        tool_call=ToolCall(id="p1", name="endpoint_thing",
-                                           arguments={"x": 1})
+                        tool_call=ToolCall(id="p1", name="endpoint_thing", arguments={"x": 1})
                     ),
                     ProviderStreamChunk(finish_reason="tool_calls"),
                 ],
@@ -209,10 +215,16 @@ class TestAdhocToolTurn:
                 ],
             ],
         )
-        loop = AgentLoop(settings=settings, store=store, registry=reg, bus=bus,
-                         dispatcher=NoAdhocDispatcher(),
-                         config=LoopConfig(max_iters=4))
+        loop = AgentLoop(
+            settings=settings,
+            store=store,
+            registry=reg,
+            bus=bus,
+            dispatcher=NoAdhocDispatcher(),
+            config=LoopConfig(max_iters=4),
+        )
         import core.agent.loop as loop_mod
+
         orig = loop_mod.get_provider
         loop_mod.get_provider = lambda name, settings: provider
         try:
@@ -259,9 +271,11 @@ class TestMaxIters:
                 for i in range(10)
             ],
         )
-        loop = AgentLoop(settings=settings, store=store, registry=reg, bus=bus,
-                         config=LoopConfig(max_iters=2))
+        loop = AgentLoop(
+            settings=settings, store=store, registry=reg, bus=bus, config=LoopConfig(max_iters=2)
+        )
         import core.agent.loop as loop_mod
+
         orig = loop_mod.get_provider
         loop_mod.get_provider = lambda name, settings: provider
         try:

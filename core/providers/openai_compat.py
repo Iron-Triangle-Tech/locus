@@ -23,7 +23,7 @@ class OpenAICompatProvider(OpenAIProvider):
     (configured with base_url/api_key upstream) and the public ``name`` differ.
     """
 
-    def __init__(self, client: "AsyncOpenAI", model: str, name: str) -> None:
+    def __init__(self, client: AsyncOpenAI, model: str, name: str) -> None:
         super().__init__(client, model)
         self.name = name
 

@@ -99,7 +99,7 @@ class LinkRegistry:
     def __init__(self) -> None:
         self._pending: dict[str, asyncio.Future[ToolResult]] = {}
 
-    def register(self, call_id: str) -> "asyncio.Future[ToolResult]":
+    def register(self, call_id: str) -> asyncio.Future[ToolResult]:
         """Create + remember a future for ``call_id``.
 
         Raises if a call with this id is already pending -- call ids are
@@ -170,11 +170,11 @@ class WSLinkAdhocDispatcher:
         self._registry = registry
         self._timeout = timeout
 
-    async def dispatch(self, call: "ToolCall") -> "ToolResultMessage":
+    async def dispatch(self, call: ToolCall) -> ToolResultMessage:
         fut = self._registry.register(call.id)
         try:
             result = await asyncio.wait_for(fut, timeout=self._timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _log.warning("ad-hoc tool timed out: call_id=%s name=%s", call.id, call.name)
             return _to_message(
                 ToolResult(
@@ -203,26 +203,25 @@ class WSLinkAdhocDispatcher:
         return _to_message(result, name=call.name)
 
 
-def _to_message(result: ToolResult, *, name: str) -> "ToolResultMessage":
+def _to_message(result: ToolResult, *, name: str) -> ToolResultMessage:
     """Translate a wire :class:`ToolResult` into the loop-internal type."""
     from core.providers.base import ToolResultMessage
 
     return ToolResultMessage(
         call_id=result.call_id,
         name=name,
-        content=result.output if result.ok and result.output is not None
-        else (result.error or ""),
+        content=result.output if result.ok and result.output is not None else (result.error or ""),
         is_error=not result.ok,
     )
 
 
 async def handle_link(
-    websocket: "WebSocket",
+    websocket: WebSocket,
     *,
-    bus: "EventBus",
+    bus: EventBus,
     registry: LinkRegistry,
     expected_token: str,
-    on_user_message: "UserMessageHandler",
+    on_user_message: UserMessageHandler,
     idle_timeout: float,
 ) -> None:
     """Drive one endpoint's WS connection to completion (or close).
@@ -263,9 +262,7 @@ async def handle_link(
         return
 
     sub = bus.subscribe()
-    pump_task = asyncio.create_task(
-        _pump_events(websocket, sub), name="ws-link-event-pump"
-    )
+    pump_task = asyncio.create_task(_pump_events(websocket, sub), name="ws-link-event-pump")
     reader_task = asyncio.create_task(
         _reader(websocket, registry, on_user_message, idle_timeout),
         name="ws-link-reader",
@@ -286,7 +283,7 @@ async def handle_link(
         _log.debug("endpoint link closed; link pending=%d", registry.pending)
 
 
-async def _pump_events(websocket: "WebSocket", sub) -> None:  # type: ignore[no-untyped-def]
+async def _pump_events(websocket: WebSocket, sub) -> None:  # type: ignore[no-untyped-def]
     """Forward bus frames -> websocket as JSON, until the bus closes."""
     try:
         async for frame in sub.events():
@@ -296,9 +293,9 @@ async def _pump_events(websocket: "WebSocket", sub) -> None:  # type: ignore[no-
 
 
 async def _reader(
-    websocket: "WebSocket",
+    websocket: WebSocket,
     registry: LinkRegistry,
-    on_user_message: "UserMessageHandler",
+    on_user_message: UserMessageHandler,
     idle_timeout: float,
 ) -> None:
     """Inbound frame loop: handle Connect once, then UserMessage/ToolResult.
@@ -312,7 +309,7 @@ async def _reader(
     # First frame must be Connect.
     try:
         first = await asyncio.wait_for(websocket.receive_text(), timeout=idle_timeout)
-    except (asyncio.TimeoutError, Exception):
+    except (TimeoutError, Exception):
         _log.warning("endpoint link: no Connect frame within %gs", idle_timeout)
         return
 
@@ -332,10 +329,8 @@ async def _reader(
 
     while True:
         try:
-            raw = await asyncio.wait_for(
-                websocket.receive_text(), timeout=idle_timeout
-            )
-        except asyncio.TimeoutError:
+            raw = await asyncio.wait_for(websocket.receive_text(), timeout=idle_timeout)
+        except TimeoutError:
             _log.debug("endpoint link idle-timeout after %gs", idle_timeout)
             return
         except Exception:
@@ -368,9 +363,7 @@ async def _reader(
             await _send_error(websocket, f"unexpected frame type: {frame.type!r}")
 
 
-async def _send_error(
-    websocket: "WebSocket", message: str, *, thread_id: str | None = None
-) -> None:
+async def _send_error(websocket: WebSocket, message: str, *, thread_id: str | None = None) -> None:
     """Best-effort push an :class:`ErrorEvent` to the endpoint."""
     try:
         await websocket.send_text(

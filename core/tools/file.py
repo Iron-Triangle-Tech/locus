@@ -82,9 +82,7 @@ class FileRead(_FileBase, Tool):
         max_bytes = int(arguments.get("max_bytes") or 65536)
         path = _resolve(self._root, raw)
         if path is None:
-            return ToolResult(
-                content=f"path not inside agent root: {raw!r}", is_error=True
-            )
+            return ToolResult(content=f"path not inside agent root: {raw!r}", is_error=True)
         if not path.exists():
             return ToolResult(content=f"not found: {raw!r}", is_error=True)
         if path.is_dir():
@@ -95,9 +93,7 @@ class FileRead(_FileBase, Tool):
         except OSError as e:
             return ToolResult(content=f"read failed: {e}", is_error=True)
         try:
-            text, truncated = await anyio.to_thread.run_sync(
-                self._decode, data, enc, max_bytes
-            )
+            text, truncated = await anyio.to_thread.run_sync(self._decode, data, enc, max_bytes)
         except (LookupError, UnicodeDecodeError) as e:
             return ToolResult(content=f"decode failed ({enc}): {e}", is_error=True)
         return ToolResult(content=text, is_error=False)
@@ -131,9 +127,7 @@ class FileWrite(_FileBase, Tool):
         enc = arguments.get("encoding") or "utf-8"
         path = _resolve(self._root, raw)
         if path is None:
-            return ToolResult(
-                content=f"path not inside agent root: {raw!r}", is_error=True
-            )
+            return ToolResult(content=f"path not inside agent root: {raw!r}", is_error=True)
         if path.exists() and path.is_dir():
             return ToolResult(content=f"is a directory: {raw!r}", is_error=True)
 
@@ -145,9 +139,7 @@ class FileWrite(_FileBase, Tool):
             await anyio.to_thread.run_sync(self._write, path, payload)
         except OSError as e:
             return ToolResult(content=f"write failed: {e}", is_error=True)
-        return ToolResult(
-            content=f"wrote {len(payload)} bytes to {raw!r}", is_error=False
-        )
+        return ToolResult(content=f"wrote {len(payload)} bytes to {raw!r}", is_error=False)
 
     @staticmethod
     def _write(path: Path, payload: bytes) -> None:
@@ -165,9 +157,7 @@ class FileList(_FileBase, Tool):
         raw = arguments.get("path", "")
         path = _resolve(self._root, raw)
         if path is None:
-            return ToolResult(
-                content=f"path not inside agent root: {raw!r}", is_error=True
-            )
+            return ToolResult(content=f"path not inside agent root: {raw!r}", is_error=True)
         if not path.exists():
             return ToolResult(content=f"not found: {raw!r}", is_error=True)
         if not path.is_dir():

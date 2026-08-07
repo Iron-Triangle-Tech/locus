@@ -22,8 +22,6 @@ from typing import Any
 import pytest
 
 from core.providers.anthropic import AnthropicProvider as _Anth
-from core.providers.gemini import GeminiProvider
-from core.providers.openai import OpenAIProvider
 from core.providers.base import (
     AssistantTurn,
     ToolCall,
@@ -31,7 +29,8 @@ from core.providers.base import (
     ToolResultMessage,
     UserTurn,
 )
-
+from core.providers.gemini import GeminiProvider
+from core.providers.openai import OpenAIProvider
 
 # --------------------------------------------------------------------------- #
 # Tiny attribute-object helpers (so we can build SDK response shapes inline)
@@ -78,7 +77,10 @@ class FakeAnthropic:
 
     class _Messages:
         def __init__(
-            self, outer: "FakeAnthropic", resp: Any, events: list[Any] | None,
+            self,
+            outer: FakeAnthropic,
+            resp: Any,
+            events: list[Any] | None,
             final_stop_reason: str,
         ) -> None:
             self._outer = outer
@@ -100,13 +102,13 @@ class _AnthStream:
         self._events = events
         self._final_stop_reason = final_stop_reason
 
-    async def __aenter__(self) -> "_AnthStream":
+    async def __aenter__(self) -> _AnthStream:
         return self
 
     async def __aexit__(self, *exc: object) -> None:
         return None
 
-    def __aiter__(self) -> "_AnthStream":
+    def __aiter__(self) -> _AnthStream:
         self._it = iter(self._events)
         return self
 
@@ -132,8 +134,10 @@ class TestAnthropicAdapter:
         client = FakeAnthropic(resp)
         prov = _Anth(client, "claude-x")
         out = await prov.complete(
-            history=[], user=UserTurn(content="weather?"),
-            tools=[_tool_def()], prior_tool_results=[],
+            history=[],
+            user=UserTurn(content="weather?"),
+            tools=[_tool_def()],
+            prior_tool_results=[],
         )
         assert out.text == "Let me check."
         assert out.tool_calls == [ToolCall(id="c1", name="get_weather", arguments={"city": "SF"})]
@@ -141,10 +145,13 @@ class TestAnthropicAdapter:
         # Marshalling: tools -> anthropic input_schema shape; user appended.
         sent = client.last_kwargs
         assert sent["model"] == "claude-x"
-        assert sent["tools"] == [{
-            "name": "get_weather", "description": "get weather",
-            "input_schema": _tool_def().parameters,
-        }]
+        assert sent["tools"] == [
+            {
+                "name": "get_weather",
+                "description": "get weather",
+                "input_schema": _tool_def().parameters,
+            }
+        ]
         assert sent["messages"] == [{"role": "user", "content": "weather?"}]
 
     async def test_complete_history_and_tool_results_interleaved(self) -> None:
@@ -152,22 +159,28 @@ class TestAnthropicAdapter:
         client = FakeAnthropic(resp)
         prov = _Anth(client, "claude-x")
         history = [
-            AssistantTurn(text="I will use a tool", tool_calls=[
-                ToolCall(id="c1", name="get_weather", arguments={"city": "SF"})
-            ])
+            AssistantTurn(
+                text="I will use a tool",
+                tool_calls=[ToolCall(id="c1", name="get_weather", arguments={"city": "SF"})],
+            )
         ]
         tr = ToolResultMessage(call_id="c1", name="get_weather", content="sunny")
-        await prov.complete(history, UserTurn(content="thanks"),
-                            [_tool_def()], prior_tool_results=[tr])
+        await prov.complete(
+            history, UserTurn(content="thanks"), [_tool_def()], prior_tool_results=[tr]
+        )
         sent = client.last_kwargs["messages"]
         # Anthropic emits *all* tool results as user messages first, then the
         # assistant turn(s), then the new user turn (see _history_to_anthropic).
         assert sent[0] == {
             "role": "user",
-            "content": [{
-                "type": "tool_result", "tool_use_id": "c1",
-                "content": "sunny", "is_error": False,
-            }],
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "c1",
+                    "content": "sunny",
+                    "is_error": False,
+                }
+            ],
         }
         assert sent[1]["role"] == "assistant"
         # the assistant turn carries its text + the tool_use block
@@ -179,19 +192,25 @@ class TestAnthropicAdapter:
 
     async def test_stream_emits_tokens_then_tool_call_then_finish(self) -> None:
         events = [
-            Obj(type="content_block_start", index=0,
-                content_block=Obj(type="text")),
-            Obj(type="content_block_delta", index=0,
-                delta=Obj(type="text_delta", text="Hel")),
-            Obj(type="content_block_delta", index=0,
-                delta=Obj(type="text_delta", text="lo")),
+            Obj(type="content_block_start", index=0, content_block=Obj(type="text")),
+            Obj(type="content_block_delta", index=0, delta=Obj(type="text_delta", text="Hel")),
+            Obj(type="content_block_delta", index=0, delta=Obj(type="text_delta", text="lo")),
             Obj(type="content_block_stop", index=0),
-            Obj(type="content_block_start", index=1,
-                content_block=Obj(type="tool_use", id="c1", name="get_weather")),
-            Obj(type="content_block_delta", index=1,
-                delta=Obj(type="input_json_delta", partial_json='{"city":')),
-            Obj(type="content_block_delta", index=1,
-                delta=Obj(type="input_json_delta", partial_json=' "SF"}')),
+            Obj(
+                type="content_block_start",
+                index=1,
+                content_block=Obj(type="tool_use", id="c1", name="get_weather"),
+            ),
+            Obj(
+                type="content_block_delta",
+                index=1,
+                delta=Obj(type="input_json_delta", partial_json='{"city":'),
+            ),
+            Obj(
+                type="content_block_delta",
+                index=1,
+                delta=Obj(type="input_json_delta", partial_json=' "SF"}'),
+            ),
             Obj(type="content_block_stop", index=1),
         ]
         client = FakeAnthropic(Obj(), stream_events=events, final_stop_reason="tool_use")
@@ -218,7 +237,7 @@ class FakeOpenAI:
         self.last_kwargs: dict[str, Any] = {}
 
     class _Chat:
-        def __init__(self, outer: "FakeOpenAI", resp: Any, chunks: list[Any] | None) -> None:
+        def __init__(self, outer: FakeOpenAI, resp: Any, chunks: list[Any] | None) -> None:
             self._outer = outer
             self._resp = resp
             self._chunks = chunks
@@ -239,41 +258,52 @@ async def _oai_stream(chunks: list[Any]) -> Any:
 class TestOpenAIAdapter:
     async def test_complete_parses_text_and_tool_calls(self) -> None:
         resp = Obj(
-            choices=[Obj(
-                finish_reason="tool_calls",
-                message=Obj(
-                    content=None,
-                    tool_calls=[Obj(
-                        id="c1", function=Obj(name="get_weather",
-                                             arguments=json.dumps({"city": "SF"}))
-                    )],
-                ),
-            )]
+            choices=[
+                Obj(
+                    finish_reason="tool_calls",
+                    message=Obj(
+                        content=None,
+                        tool_calls=[
+                            Obj(
+                                id="c1",
+                                function=Obj(
+                                    name="get_weather", arguments=json.dumps({"city": "SF"})
+                                ),
+                            )
+                        ],
+                    ),
+                )
+            ]
         )
         client = FakeOpenAI(resp)
         prov = OpenAIProvider(client, "gpt-x")
-        out = await prov.complete(
-            [], UserTurn(content="weather?"), [_tool_def()], []
-        )
+        out = await prov.complete([], UserTurn(content="weather?"), [_tool_def()], [])
         assert out.text == ""
         assert out.tool_calls == [ToolCall(id="c1", name="get_weather", arguments={"city": "SF"})]
         assert out.finish_reason == "tool_calls"
         sent = client.last_kwargs
-        assert sent["tools"] == [{
-            "type": "function",
-            "function": {
-                "name": "get_weather", "description": "get weather",
-                "parameters": _tool_def().parameters,
-            },
-        }]
+        assert sent["tools"] == [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "get weather",
+                    "parameters": _tool_def().parameters,
+                },
+            }
+        ]
         assert sent["messages"] == [{"role": "user", "content": "weather?"}]
 
     async def test_complete_interleaves_tool_results_after_assistant_turn(self) -> None:
         resp = Obj(choices=[Obj(finish_reason="stop", message=Obj(content="ok"))])
         client = FakeOpenAI(resp)
         prov = OpenAIProvider(client, "gpt-x")
-        history = [AssistantTurn(text="tool-running", tool_calls=[
-            ToolCall(id="c1", name="get_weather", arguments={"city": "SF"})])]
+        history = [
+            AssistantTurn(
+                text="tool-running",
+                tool_calls=[ToolCall(id="c1", name="get_weather", arguments={"city": "SF"})],
+            )
+        ]
         tr = ToolResultMessage(call_id="c1", name="get_weather", content="sunny")
         await prov.complete(history, UserTurn(content="thx"), [_tool_def()], [tr])
         sent = client.last_kwargs["messages"]
@@ -285,19 +315,40 @@ class TestOpenAIAdapter:
 
     async def test_stream_tokens_and_tool_call_then_finish(self) -> None:
         chunks = [
-            Obj(choices=[Obj(finish_reason=None,
-                             delta=Obj(content="Hi", tool_calls=None))]),
-            Obj(choices=[Obj(finish_reason=None,
-                             delta=Obj(content=None, tool_calls=[
-                                 Obj(index=0, id="c1",
-                                     function=Obj(name="get_weather", arguments='{"city":'))
-                             ]))]),
-            Obj(choices=[Obj(finish_reason=None,
-                             delta=Obj(content=None, tool_calls=[
-                                 Obj(index=0, id=None,
-                                     function=Obj(name=None, arguments=' "SF"}'))
-                             ]))]),
-            Obj(choices=[Obj(finish_reason="tool_calls", delta=Obj(content=None, tool_calls=None))]),
+            Obj(choices=[Obj(finish_reason=None, delta=Obj(content="Hi", tool_calls=None))]),
+            Obj(
+                choices=[
+                    Obj(
+                        finish_reason=None,
+                        delta=Obj(
+                            content=None,
+                            tool_calls=[
+                                Obj(
+                                    index=0,
+                                    id="c1",
+                                    function=Obj(name="get_weather", arguments='{"city":'),
+                                )
+                            ],
+                        ),
+                    )
+                ]
+            ),
+            Obj(
+                choices=[
+                    Obj(
+                        finish_reason=None,
+                        delta=Obj(
+                            content=None,
+                            tool_calls=[
+                                Obj(index=0, id=None, function=Obj(name=None, arguments=' "SF"}'))
+                            ],
+                        ),
+                    )
+                ]
+            ),
+            Obj(
+                choices=[Obj(finish_reason="tool_calls", delta=Obj(content=None, tool_calls=None))]
+            ),
         ]
         client = FakeOpenAI(None, stream_chunks=chunks)
         prov = OpenAIProvider(client, "gpt-x")
@@ -325,7 +376,7 @@ class FakeGeminiAio:
         self.last_kwargs: dict[str, Any] = {}
 
     class _Models:
-        def __init__(self, outer: "FakeGeminiAio", resp: Any, chunks: list[Any] | None) -> None:
+        def __init__(self, outer: FakeGeminiAio, resp: Any, chunks: list[Any] | None) -> None:
             self._outer = outer
             self._resp = resp
             self._chunks = chunks
@@ -358,35 +409,45 @@ def _gemini_resp(parts: list[Any]) -> Any:
 
 class TestGeminiAdapter:
     async def test_complete_parses_text_and_function_call(self) -> None:
-        resp = _gemini_resp([
-            _gemini_text_part("Checking"),
-            _gemini_fc_part("get_weather", {"city": "SF"}),
-        ])
+        resp = _gemini_resp(
+            [
+                _gemini_text_part("Checking"),
+                _gemini_fc_part("get_weather", {"city": "SF"}),
+            ]
+        )
         client = FakeGeminiAio(resp)
         prov = GeminiProvider(client, "gemini-x")
-        out = await prov.complete(
-            [], UserTurn(content="weather?"), [_tool_def()], []
-        )
+        out = await prov.complete([], UserTurn(content="weather?"), [_tool_def()], [])
         assert out.text == "Checking"
-        assert out.tool_calls == [ToolCall(id="get_weather", name="get_weather",
-                                            arguments={"city": "SF"})]
+        assert out.tool_calls == [
+            ToolCall(id="get_weather", name="get_weather", arguments={"city": "SF"})
+        ]
         assert out.finish_reason == "tool_calls"
         sent = client.last_kwargs
         assert sent["model"] == "gemini-x"
-        assert sent["tools"] == [{
-            "function_declarations": [{
-                "name": "get_weather", "description": "get weather",
-                "parameters": _tool_def().parameters,
-            }]
-        }]
+        assert sent["tools"] == [
+            {
+                "function_declarations": [
+                    {
+                        "name": "get_weather",
+                        "description": "get weather",
+                        "parameters": _tool_def().parameters,
+                    }
+                ]
+            }
+        ]
         assert sent["contents"][-1] == {"role": "user", "parts": [{"text": "weather?"}]}
 
     async def test_complete_history_pairs_tool_results_by_name(self) -> None:
         resp = _gemini_resp([_gemini_text_part("ok")])
         client = FakeGeminiAio(resp)
         prov = GeminiProvider(client, "gemini-x")
-        history = [AssistantTurn(text="run", tool_calls=[
-            ToolCall(id="c1", name="get_weather", arguments={"city": "SF"})])]
+        history = [
+            AssistantTurn(
+                text="run",
+                tool_calls=[ToolCall(id="c1", name="get_weather", arguments={"city": "SF"})],
+            )
+        ]
         tr = ToolResultMessage(call_id="c1", name="get_weather", content="sunny")
         await prov.complete(history, UserTurn(content="thx"), [_tool_def()], [tr])
         contents = client.last_kwargs["contents"]
@@ -412,8 +473,7 @@ class TestGeminiAdapter:
         tokens = "".join(c.token for c in out if c.token)
         assert tokens == "Hello"
         tcs = [c.tool_call for c in out if c.tool_call]
-        assert tcs == [ToolCall(id="get_weather", name="get_weather",
-                                 arguments={"city": "SF"})]
+        assert tcs == [ToolCall(id="get_weather", name="get_weather", arguments={"city": "SF"})]
         reasons = [c.finish_reason for c in out if c.finish_reason]
         assert reasons == ["tool_calls"]
 
@@ -464,8 +524,7 @@ class TestRegistry:
         if prov is not None:
             # Accept either a default-name string or a full ProviderSettings.
             kw["provider"] = (
-                prov if isinstance(prov, ProviderSettings)
-                else ProviderSettings(default=prov)
+                prov if isinstance(prov, ProviderSettings) else ProviderSettings(default=prov)
             )
         if providers is not None:
             kw["providers"] = providers
@@ -487,12 +546,14 @@ class TestRegistry:
             assert resolve_provider_name(name, s) == name
 
     def test_resolve_known_named_provider_passes(self) -> None:
-        from core.settings import NamedProviderSettings
         from core.providers import resolve_provider_name
+        from core.settings import NamedProviderSettings
 
-        s = self._settings(providers={
-            "local": NamedProviderSettings(base_url="http://x", api_key="k"),
-        })
+        s = self._settings(
+            providers={
+                "local": NamedProviderSettings(base_url="http://x", api_key="k"),
+            }
+        )
         assert resolve_provider_name("local", s) == "local"
 
     def test_resolve_unknown_raises_keyerror(self) -> None:
@@ -502,23 +563,15 @@ class TestRegistry:
         with pytest.raises(KeyError):
             resolve_provider_name("nope", s)
 
-    def test_get_provider_dispatches_builtins(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_get_provider_dispatches_builtins(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import core.providers as reg
         from core.providers import get_provider
 
         s = self._settings(provider="anthropic")  # model resolved from defaults
         calls: list[str] = []
-        monkeypatch.setattr(
-            reg, "_build_anthropic", lambda m: (calls.append(m), _Sentinel())[1]
-        )
-        monkeypatch.setattr(
-            reg, "_build_openai", lambda m: (calls.append(m), _Sentinel("oai"))[1]
-        )
-        monkeypatch.setattr(
-            reg, "_build_gemini", lambda m: (calls.append(m), _Sentinel("gem"))[1]
-        )
+        monkeypatch.setattr(reg, "_build_anthropic", lambda m: (calls.append(m), _Sentinel())[1])
+        monkeypatch.setattr(reg, "_build_openai", lambda m: (calls.append(m), _Sentinel("oai"))[1])
+        monkeypatch.setattr(reg, "_build_gemini", lambda m: (calls.append(m), _Sentinel("gem"))[1])
         # auto -> default anthropic
         p = get_provider("auto", s)
         assert isinstance(p, _Sentinel)
@@ -530,18 +583,16 @@ class TestRegistry:
         get_provider("gemini", s)
         assert calls == ["gemini-1.5-flash"]
 
-    def test_get_provider_dispatches_named_compat(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_get_provider_dispatches_named_compat(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import core.providers as reg
-        from core.settings import NamedProviderSettings
         from core.providers import get_provider
+        from core.settings import NamedProviderSettings
 
-        s = self._settings(providers={
-            "local": NamedProviderSettings(
-                base_url="http://x", api_key="k", model="llama-3"
-            ),
-        })
+        s = self._settings(
+            providers={
+                "local": NamedProviderSettings(base_url="http://x", api_key="k", model="llama-3"),
+            }
+        )
         seen: dict[str, Any] = {}
         monkeypatch.setattr(
             reg,
@@ -554,8 +605,10 @@ class TestRegistry:
         p = get_provider("local", s)
         assert isinstance(p, _Sentinel)
         assert seen == {
-            "name": "local", "base_url": "http://x",
-            "api_key": "k", "model": "llama-3",
+            "name": "local",
+            "base_url": "http://x",
+            "api_key": "k",
+            "model": "llama-3",
         }
 
     def test_get_provider_unknown_raises(self) -> None:
@@ -565,9 +618,7 @@ class TestRegistry:
         with pytest.raises(KeyError):
             get_provider("nope", s)
 
-    def test_get_provider_no_model_raises(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_get_provider_no_model_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from core.providers import get_provider
         from core.settings import ProviderSettings
 

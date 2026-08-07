@@ -7,7 +7,7 @@ token. Keeping the helper here avoids either side reaching into the other.
 
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 #: HTTP header name carrying the bearer token on the WS handshake.
 AUTH_HEADER = "Authorization"

@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     Boolean,
@@ -58,7 +58,7 @@ class Base(DeclarativeBase):
 
 def _utcnow() -> datetime:
     """Timezone-aware UTC now (stored in every ``created_at``)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Thread(Base):
@@ -215,9 +215,7 @@ class ToolDefRow(Base):
 
     name: Mapped[str] = mapped_column(String(128), primary_key=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    parameters_json: Mapped[str] = mapped_column(
-        Text, nullable=False, default="{}"
-    )
+    parameters_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
@@ -537,9 +535,7 @@ class MemoryStore:
         if not defs:
             return []
         async with self._sf() as session:
-            existing = set(
-                (await session.execute(select(ToolDefRow.name))).scalars().all()
-            )
+            existing = set((await session.execute(select(ToolDefRow.name))).scalars().all())
             missing: list[ToolDefRow] = []
             for d in defs:
                 if d.name in existing:

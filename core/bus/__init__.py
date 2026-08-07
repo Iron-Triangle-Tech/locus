@@ -28,7 +28,7 @@ class Subscription:
         """Yield frames as they arrive; exits when the bus is closed."""
         while True:
             item = await self._queue.get()
-            if item is None:  #sentinel: bus closed
+            if item is None:  # sentinel: bus closed
                 return
             yield item
 
@@ -44,9 +44,7 @@ class EventBus:
     def __init__(self, queue_size: int = 1024) -> None:
         self._queue_size = queue_size
         # (queue, thread_id_filter_or_None, drop_counter_holder)
-        self._subs: list[
-            tuple[asyncio.Queue[CoreFrame | None], str | None, list[int]]
-        ] = []
+        self._subs: list[tuple[asyncio.Queue[CoreFrame | None], str | None, list[int]]] = []
         self._closed = False
 
     def subscribe(self, thread_id: str | None = None) -> Subscription:
@@ -111,8 +109,7 @@ class EventBus:
                 # Edge case: a drop-notification we just inserted filled it.
                 drops[0] += 1
                 _log.warning(
-                    "event bus: frame dropped (queue full after drop-notify) "
-                    "thread_id=%s",
+                    "event bus: frame dropped (queue full after drop-notify) thread_id=%s",
                     getattr(frame, "thread_id", None),
                 )
 

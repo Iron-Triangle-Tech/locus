@@ -50,7 +50,7 @@ class REPL:
 
     PROMPT = "> "
 
-    def __init__(self, client: "EndpointClient", settings: "EndpointSettings") -> None:
+    def __init__(self, client: EndpointClient, settings: EndpointSettings) -> None:
         self._client = client
         self._settings = settings
         # Thread continuity: pinned from the first event's thread_id, then reused
@@ -89,11 +89,9 @@ class REPL:
         Stops iterating once a ``FinalEvent`` (or a fatal ``ErrorEvent``) lands,
         which is how the loop signals end-of-turn.
         """
-        await self._client.send_user_message(
-            content, thread_id=self._thread_id
-        )
+        await self._client.send_user_message(content, thread_id=self._thread_id)
         started_line = False
-        async for frame in self._client.events():  # noqa: B007 -- break handled below
+        async for frame in self._client.events():
             # Pin the thread id from the first frame that carries one.
             tid = getattr(frame, "thread_id", None)
             if tid and self._thread_id is None:
@@ -176,7 +174,7 @@ class REPL:
 def _read_line(prompt: str) -> str | None:
     """Read one line from stdin (blocking, run in an executor). Returns None on
     EOF, raises EOFError if input() returns empty at EOF (Python's input raises
-    EOFError on Ctrl-D). """
+    EOFError on Ctrl-D)."""
     try:
         return input(prompt)
     except EOFError:
@@ -186,7 +184,7 @@ def _read_line(prompt: str) -> str | None:
 
 
 async def run_repl(
-    settings: "EndpointSettings",
+    settings: EndpointSettings,
     *,
     endpoint_id: str | None = None,
     adhoc_tools: dict[str, Any] | None = None,
@@ -194,9 +192,7 @@ async def run_repl(
     """Connect to core and run the REPL. Returns a process exit code."""
     from endpoint.endpoint_conn.client import EndpointClient
 
-    client = EndpointClient(
-        settings, endpoint_id=endpoint_id, adhoc_tools=adhoc_tools
-    )
+    client = EndpointClient(settings, endpoint_id=endpoint_id, adhoc_tools=adhoc_tools)
     try:
         try:
             await client.connect()

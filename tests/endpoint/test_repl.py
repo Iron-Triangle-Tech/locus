@@ -10,9 +10,7 @@ continuity across turns.
 
 from __future__ import annotations
 
-import asyncio
 import io
-import json
 from typing import Any
 
 import pytest
@@ -21,7 +19,6 @@ from endpoint.endpoint_conn.client import EndpointClient
 from endpoint.settings import CoreSettings, EndpointSettings, UISettings
 from endpoint.ui import repl as repl_mod
 from shared.protocol import dump, load_endpoint
-
 
 # --------------------------------------------------------------------------- #
 # Fake core WS server (a compact copy of the one in test_client.py; kept local
@@ -127,7 +124,8 @@ class TestREPL:
         try:
             rc = await _run_repl(
                 _settings(f"ws://127.0.0.1:{core.port}/link", token="right"),
-                out=out, err=err,
+                out=out,
+                err=err,
             )
         finally:
             await core.stop()
@@ -147,12 +145,18 @@ class TestREPL:
             await conn.recv()  # Connect
             await conn.recv()  # UserMessage
             await conn.send(
-                dump(ToolCallEvent(thread_id="t", call_id="c1", name="http_fetch",
-                                    arguments={"url": "https://x"}, local=True))
+                dump(
+                    ToolCallEvent(
+                        thread_id="t",
+                        call_id="c1",
+                        name="http_fetch",
+                        arguments={"url": "https://x"},
+                        local=True,
+                    )
+                )
             )
             await conn.send(
-                dump(ToolResultEvent(thread_id="t", call_id="c1", ok=True,
-                                      output="some bytes"))
+                dump(ToolResultEvent(thread_id="t", call_id="c1", ok=True, output="some bytes"))
             )
             await conn.send(dump(FinalEvent(thread_id="t", text="done")))
             await conn.recv()  # block until client closes
@@ -164,7 +168,8 @@ class TestREPL:
         try:
             rc = await _run_repl(
                 _settings(f"ws://127.0.0.1:{core.port}/link", token="right"),
-                out=out, err=err,
+                out=out,
+                err=err,
             )
         finally:
             await core.stop()
@@ -195,9 +200,9 @@ class TestREPL:
         _patch_stdin(["q", "/exit"], monkeypatch)
         try:
             rc = await _run_repl(
-                _settings(f"ws://127.0.0.1:{core.port}/link", token="right",
-                          stream_tokens=False),
-                out=out, err=err,
+                _settings(f"ws://127.0.0.1:{core.port}/link", token="right", stream_tokens=False),
+                out=out,
+                err=err,
             )
         finally:
             await core.stop()
@@ -232,7 +237,8 @@ class TestREPL:
         try:
             await _run_repl(
                 _settings(f"ws://127.0.0.1:{core.port}/link", token="right"),
-                out=out, err=err,
+                out=out,
+                err=err,
             )
         finally:
             await core.stop()
@@ -258,7 +264,8 @@ class TestREPL:
         try:
             rc = await _run_repl(
                 _settings(f"ws://127.0.0.1:{core.port}/link", token="right"),
-                out=out, err=err,
+                out=out,
+                err=err,
             )
         finally:
             await core.stop()
@@ -268,9 +275,7 @@ class TestREPL:
         # Non-fatal error keeps the turn going to final.
         assert "ok" in out.getvalue()
 
-    async def test_eof_exits_cleanly(
-        self, tmp_path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_eof_exits_cleanly(self, tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
         from shared.protocol import FinalEvent
 
         async def handler(conn: Any) -> None:
@@ -287,7 +292,8 @@ class TestREPL:
         try:
             rc = await _run_repl(
                 _settings(f"ws://127.0.0.1:{core.port}/link", token="right"),
-                out=out, err=err,
+                out=out,
+                err=err,
             )
         finally:
             await core.stop()
@@ -296,9 +302,7 @@ class TestREPL:
         assert "hi" in out.getvalue()
         assert "Bye." in out.getvalue()
 
-    async def test_blank_lines_are_ignored(
-        self, tmp_path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_blank_lines_are_ignored(self, tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
         from shared.protocol import FinalEvent
 
         sent: list[str] = []
@@ -317,7 +321,8 @@ class TestREPL:
         try:
             rc = await _run_repl(
                 _settings(f"ws://127.0.0.1:{core.port}/link", token="right"),
-                out=out, err=err,
+                out=out,
+                err=err,
             )
         finally:
             await core.stop()

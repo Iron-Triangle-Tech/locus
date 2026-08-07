@@ -28,7 +28,9 @@ from .base import (
 if TYPE_CHECKING:
     from anthropic import AsyncAnthropic
 
-_FINISH_MAP = {
+FinishReason = Literal["stop", "tool_calls", "length", "error"]
+
+_FINISH_MAP: dict[str, FinishReason] = {
     "end_turn": "stop",
     "stop_sequence": "stop",
     "max_tokens": "length",
@@ -111,7 +113,7 @@ def _parse_tool_calls(content: list[dict[str, Any]]) -> tuple[list[ToolCall], st
 class AnthropicProvider:
     """``anthropic`` Claude Messages-API implementation of :class:`Provider`."""
 
-    def __init__(self, client: "AsyncAnthropic", model: str) -> None:
+    def __init__(self, client: AsyncAnthropic, model: str) -> None:
         self.client = client
         self.model = model
         self.name = "anthropic"
@@ -138,9 +140,7 @@ class AnthropicProvider:
         return ProviderResponse(
             text=text,
             tool_calls=tool_calls,
-            finish_reason=_FINISH_MAP.get(
-                getattr(resp, "stop_reason", "end_turn"), "stop"
-            ),
+            finish_reason=_FINISH_MAP.get(getattr(resp, "stop_reason", "end_turn"), "stop"),
         )
 
     def stream(
@@ -178,7 +178,9 @@ class AnthropicProvider:
             async for event in stream:
                 etype = getattr(event, "type", "")
                 if etype == "content_block_delta":
-                    delta = event.delta  # type: ignore[attr-defined]
+                    delta = getattr(event, "delta", None)
+                    if delta is None:
+                        continue
                     dtype = getattr(delta, "type", "")
                     if dtype == "text_delta":
                         yield ProviderStreamChunk(token=getattr(delta, "text", ""))
@@ -186,9 +188,7 @@ class AnthropicProvider:
                         # Buffer partial JSON keyed by the current tool_use id.
                         # Find the active tool_use block index from content_block.
                         bindex = getattr(event, "index", 0)
-                        slot = pending.setdefault(
-                            str(bindex), {"id": "", "name": "", "json": ""}
-                        )
+                        slot = pending.setdefault(str(bindex), {"id": "", "name": "", "json": ""})
                         slot["json"] += getattr(delta, "partial_json", "")
                 elif etype == "content_block_start":
                     block = getattr(event, "content_block", None)
@@ -208,9 +208,7 @@ class AnthropicProvider:
                         except json.JSONDecodeError:
                             args = {}
                         yield ProviderStreamChunk(
-                            tool_call=ToolCall(
-                                id=slot["id"], name=slot["name"], arguments=args
-                            )
+                            tool_call=ToolCall(id=slot["id"], name=slot["name"], arguments=args)
                         )
             final = await stream.get_final_message()
             reason: Literal["stop", "tool_calls", "length", "error"] = _FINISH_MAP.get(

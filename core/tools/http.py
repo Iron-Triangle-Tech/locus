@@ -53,9 +53,7 @@ class HttpFetch(Tool):
             return ToolResult(content="missing 'url'", is_error=True)
         method = str(arguments.get("method") or "GET").upper()
         if method not in _ALLOWED_METHODS:
-            return ToolResult(
-                content=f"method not allowed: {method!r}", is_error=True
-            )
+            return ToolResult(content=f"method not allowed: {method!r}", is_error=True)
         headers = arguments.get("headers") or {}
         if not isinstance(headers, dict):
             return ToolResult(content="'headers' must be an object", is_error=True)
@@ -76,9 +74,7 @@ class HttpFetch(Tool):
         # Read up to max_bytes+1 so we can detect oversize and marker-truncate.
         cap = self._max_bytes
         try:
-            async with httpx.AsyncClient(
-                timeout=timeout, follow_redirects=True
-            ) as client:
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
                 resp = await client.request(
                     method,
                     url,

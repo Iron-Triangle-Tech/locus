@@ -178,9 +178,7 @@ class GeminiProvider:
         if tools:
             kwargs["tools"] = _tools_to_gemini(tools)
         had_tool_call = False
-        async for chunk in await self.client.aio.models.generate_content_stream(
-            **kwargs
-        ):
+        async for chunk in await self.client.aio.models.generate_content_stream(**kwargs):
             for cand in getattr(chunk, "candidates", []) or []:
                 content = getattr(cand, "content", None)
                 if content is None:
@@ -206,9 +204,7 @@ class GeminiProvider:
                         )
                     elif getattr(part, "text", None):
                         yield ProviderStreamChunk(token=part.text)
-        yield ProviderStreamChunk(
-            finish_reason="tool_calls" if had_tool_call else "stop"
-        )
+        yield ProviderStreamChunk(finish_reason="tool_calls" if had_tool_call else "stop")
 
 
 __all__ = ["GeminiProvider"]

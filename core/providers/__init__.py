@@ -42,7 +42,7 @@ __all__ = [
 ]
 
 
-def resolve_provider_name(name: str, settings: "CoreSettings") -> str:
+def resolve_provider_name(name: str, settings: CoreSettings) -> str:
     """Map a wire-protocol ``provider`` value to a concrete provider name.
 
     ``"auto"`` resolves to the configured default; any other name is returned
@@ -55,7 +55,7 @@ def resolve_provider_name(name: str, settings: "CoreSettings") -> str:
     return name
 
 
-def get_provider(name: str, settings: "CoreSettings") -> "Provider":
+def get_provider(name: str, settings: CoreSettings) -> Provider:
     """Construct a :class:`Provider` for ``name`` (``"auto"`` resolves to default)."""
     raw_name = name
     if raw_name == "auto":
@@ -82,42 +82,42 @@ def get_provider(name: str, settings: "CoreSettings") -> "Provider":
     raise KeyError(f"Unknown provider: {name!r}")
 
 
-def _build_anthropic(model: str) -> "Provider":
+def _build_anthropic(model: str) -> Provider:
     import os
 
-    from .anthropic import AnthropicProvider
-
     from anthropic import AsyncAnthropic
+
+    from .anthropic import AnthropicProvider
 
     api_key = os.environ.get("ANTHROPIC_API_KEY") or None
     client = AsyncAnthropic(api_key=api_key)
     return AnthropicProvider(client, model)
 
 
-def _build_openai(model: str) -> "Provider":
-    from .openai import OpenAIProvider
-
+def _build_openai(model: str) -> Provider:
     from openai import AsyncOpenAI
+
+    from .openai import OpenAIProvider
 
     client = AsyncOpenAI()
     return OpenAIProvider(client, model)
 
 
-def _build_openai_compat(name: str, base_url: str, api_key: str, model: str) -> "Provider":
-    from .openai_compat import OpenAICompatProvider
-
+def _build_openai_compat(name: str, base_url: str, api_key: str, model: str) -> Provider:
     from openai import AsyncOpenAI
+
+    from .openai_compat import OpenAICompatProvider
 
     client = AsyncOpenAI(base_url=base_url, api_key=api_key or "ignored")
     return OpenAICompatProvider(client, model, name)
 
 
-def _build_gemini(model: str) -> "Provider":
+def _build_gemini(model: str) -> Provider:
     import os
 
-    from .gemini import GeminiProvider
-
     from google import genai
+
+    from .gemini import GeminiProvider
 
     client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY") or None)
     return GeminiProvider(client, model)

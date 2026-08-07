@@ -24,7 +24,9 @@ from .base import (
 if TYPE_CHECKING:
     from openai import AsyncOpenAI
 
-_FINISH_MAP = {
+FinishReason = Literal["stop", "tool_calls", "length", "error"]
+
+_FINISH_MAP: dict[str, FinishReason] = {
     "stop": "stop",
     "tool_calls": "tool_calls",
     "length": "length",
@@ -95,9 +97,7 @@ def _build_messages(
     paired = {tc.id for turn in history for tc in turn.tool_calls}
     for tr in prior_tool_results:
         if tr.call_id not in paired:
-            messages.append(
-                {"role": "tool", "tool_call_id": tr.call_id, "content": tr.content}
-            )
+            messages.append({"role": "tool", "tool_call_id": tr.call_id, "content": tr.content})
     if user.content:
         messages.append({"role": "user", "content": user.content})
     return messages
@@ -120,7 +120,7 @@ def _parse_tool_calls(calls: list[Any] | None) -> list[ToolCall]:
 class OpenAIProvider:
     """OpenAI Chat Completions implementation of :class:`Provider`."""
 
-    def __init__(self, client: "AsyncOpenAI", model: str) -> None:
+    def __init__(self, client: AsyncOpenAI, model: str) -> None:
         self.client = client
         self.model = model
         self.name = "openai"
@@ -186,9 +186,7 @@ class OpenAIProvider:
             if tcalls:
                 for tc in tcalls:
                     idx = tc.index
-                    slot = pending.setdefault(
-                        idx, {"id": "", "name": "", "json": ""}
-                    )
+                    slot = pending.setdefault(idx, {"id": "", "name": "", "json": ""})
                     if tc.id:
                         slot["id"] = tc.id
                     fn = tc.function
@@ -204,9 +202,7 @@ class OpenAIProvider:
                     except json.JSONDecodeError:
                         args = {}
                     yield ProviderStreamChunk(
-                        tool_call=ToolCall(
-                            id=slot["id"], name=slot["name"], arguments=args
-                        )
+                        tool_call=ToolCall(id=slot["id"], name=slot["name"], arguments=args)
                     )
                 pending.clear()
                 yield ProviderStreamChunk(

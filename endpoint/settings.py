@@ -11,6 +11,7 @@ The endpoint is deliberately a thin client: it only needs to know where core is
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field
 from pydantic_settings import (
@@ -50,7 +51,9 @@ class CoreSettings(BaseModel):
     # Seconds to wait for the first Connect ack / a frame before giving up.
     connect_timeout: float = 10.0
     idle_timeout: float = 300.0
-    proxy: str | bool | None = None
+    # ``bool`` is too wide for ``websockets.connect(proxy=...)``; only ``True``
+    # (honor env) is meaningful, mirroring the websockets contract.
+    proxy: str | Literal[True] | None = None
 
 
 class UISettings(BaseModel):

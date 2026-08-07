@@ -13,16 +13,14 @@ coverage *through* core lives in ``tests/core/test_app.py`` already.
 from __future__ import annotations
 
 import asyncio
-import json
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
 
-from endpoint.endpoint_conn.client import EndpointClient, AuthError
+from endpoint.endpoint_conn.client import AuthError, EndpointClient
 from endpoint.settings import CoreSettings, EndpointSettings, UISettings
-from shared.protocol import AdhocTool, ToolSchema, load_endpoint
-
+from shared.protocol import load_endpoint
 
 # --------------------------------------------------------------------------- #
 # Fake core WS server
@@ -52,9 +50,7 @@ class FakeCore:
     async def start(self) -> None:
         from websockets.asyncio.server import serve
 
-        self._server = await serve(
-            self._serve, "127.0.0.1", 0, max_size=None
-        )
+        self._server = await serve(self._serve, "127.0.0.1", 0, max_size=None)
         # websockets Server exposes the bound sockets under ._socks (server
         # attribute) -- pull the actual port from there.
         socks = self._server.sockets
@@ -166,7 +162,7 @@ class TestEndpointClient:
             await conn.recv()  # Connect
             # stream a token then a final
             await conn.send(dump(TokenEvent(thread_id="t1", delta="Hel")))
-            await conn.send(dump(TokenEvent(thread_id="t1", delta="lo")));
+            await conn.send(dump(TokenEvent(thread_id="t1", delta="lo")))
             await conn.send(dump(FinalEvent(thread_id="t1", text="Hello")))
             await conn.close()
 
@@ -215,8 +211,11 @@ class TestEndpointClient:
             assert connect.adhoc_tools[0].tool.name == "echo"
             # Tell the client to run its tool.
             await conn.send(
-                dump(ToolCallEvent(thread_id="t", call_id="c1", name="echo",
-                                    arguments={"q": "hi"}, local=False))
+                dump(
+                    ToolCallEvent(
+                        thread_id="t", call_id="c1", name="echo", arguments={"q": "hi"}, local=False
+                    )
+                )
             )
             # Expect a ToolResult frame back.
             result_seen.append(load_endpoint(await conn.recv()))
@@ -252,8 +251,11 @@ class TestEndpointClient:
         async def handler(conn: Any) -> None:
             await conn.recv()  # Connect
             await conn.send(
-                dump(ToolCallEvent(thread_id="t", call_id="c2",
-                                    name="nope_local", arguments={}, local=False))
+                dump(
+                    ToolCallEvent(
+                        thread_id="t", call_id="c2", name="nope_local", arguments={}, local=False
+                    )
+                )
             )
             result_seen.append(load_endpoint(await conn.recv()))
             await conn.close()
@@ -279,7 +281,7 @@ class TestEndpointClient:
     async def test_local_tool_call_is_not_executed_endpoint_side(self) -> None:
         """ToolCallEvent with local=True is just rendered (iterated), not
         dispatched to an ad-hoc runnable -- core ran it itself."""
-        from shared.protocol import ToolCallEvent, dump, load_endpoint
+        from shared.protocol import ToolCallEvent, dump
 
         executed: list[dict[str, Any]] = []
 
@@ -288,15 +290,19 @@ class TestEndpointClient:
             return "should-not-happen"
 
         my_tool.schema = {
-            "name": "my_tool", "description": "",
+            "name": "my_tool",
+            "description": "",
             "parameters": {"type": "object", "properties": {}},
         }
 
         async def handler(conn: Any) -> None:
             await conn.recv()  # Connect
             await conn.send(
-                dump(ToolCallEvent(thread_id="t", call_id="c3", name="my_tool",
-                                    arguments={}, local=True))
+                dump(
+                    ToolCallEvent(
+                        thread_id="t", call_id="c3", name="my_tool", arguments={}, local=True
+                    )
+                )
             )
             await conn.close()
 
@@ -318,15 +324,14 @@ class TestEndpointClient:
 
     async def test_auth_failure_raises_autherror(self) -> None:
         """A rejected upgrade (wrong token) surfaces as AuthError, not a hang."""
+
         async def handler(conn: Any) -> None:
             await conn.close()
 
         core = FakeCore(token="right", handler=handler)
         await core.start()
         try:
-            client = EndpointClient(
-                _settings(f"ws://127.0.0.1:{core.port}/link", token="wrong")
-            )
+            client = EndpointClient(_settings(f"ws://127.0.0.1:{core.port}/link", token="wrong"))
             with pytest.raises(AuthError):
                 await client.connect()
             await client.close()

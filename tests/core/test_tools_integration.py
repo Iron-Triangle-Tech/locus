@@ -55,9 +55,7 @@ async def registry(store: MemoryStore, tmp_path: Path) -> ToolRegistry:
     reg = ToolRegistry()
     agent_root = tmp_path / "ws"
     reg.register_compiled_tools(*default_file_tools(agent_root))
-    reg.register_compiled_tools(
-        HttpFetch(max_bytes=1024, default_timeout=2.0)
-    )
+    reg.register_compiled_tools(HttpFetch(max_bytes=1024, default_timeout=2.0))
     defs = {d.name: d for d in await store.list_tool_defs()}
     reg.load_defs(defs)
     return reg
@@ -127,14 +125,10 @@ class TestSeedAndStore:
 class TestRegistryIntersection:
     def test_export_defs_returns_all_four(self, registry: ToolRegistry) -> None:
         exported = registry.export_defs()
-        assert [d.name for d in exported] == [
-            "file_list", "file_read", "file_write", "http_fetch"
-        ]
+        assert [d.name for d in exported] == ["file_list", "file_read", "file_write", "http_fetch"]
         assert all(isinstance(d, ToolDef) for d in exported)
 
-    async def test_def_without_runnable_is_hidden(
-        self, store: MemoryStore, tmp_path: Path
-    ) -> None:
+    async def test_def_without_runnable_is_hidden(self, store: MemoryStore, tmp_path: Path) -> None:
         # Seed the ROM first so the built-in tools have defs in the store.
         await seed_missing(store, load_tool_defs())
         # Add a def row for a tool that has no runnable.
@@ -162,9 +156,7 @@ class TestRegistryIntersection:
 
 class TestDispatch:
     async def test_file_write_then_read(self, registry: ToolRegistry) -> None:
-        w = await registry.dispatch(
-            "file_write", {"path": "sub/hello.txt", "content": "hi"}
-        )
+        w = await registry.dispatch("file_write", {"path": "sub/hello.txt", "content": "hi"})
         assert not w.is_error, w.content
         r = await registry.dispatch("file_read", {"path": "sub/hello.txt"})
         assert not r.is_error
@@ -200,9 +192,7 @@ class TestDispatch:
         assert r.is_error
         assert "no such tool" in r.content
 
-    async def test_http_fetch_network_error(
-        self, registry: ToolRegistry
-    ) -> None:
+    async def test_http_fetch_network_error(self, registry: ToolRegistry) -> None:
         # A non-routable address -> network error, returned as is_error.
         r = await registry.dispatch(
             "http_fetch", {"url": "http://127.0.0.1:1/nope", "timeout": 0.1}

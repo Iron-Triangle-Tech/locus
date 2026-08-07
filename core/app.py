@@ -202,9 +202,7 @@ def _wire_routes(app: FastAPI, state: AppState) -> None:
             # Unknown provider name is a client error, not a 500.
             raise HTTPException(status_code=400, detail=str(e)) from e
         model = req.model or state.settings.resolved_model(provider) or None
-        thread = await state.store.create_thread(
-            provider=provider, model=model, title=req.title
-        )
+        thread = await state.store.create_thread(provider=provider, model=model, title=req.title)
         return ThreadResponse(
             id=thread.id, provider=thread.provider, model=thread.model, title=thread.title
         )
@@ -232,9 +230,7 @@ def _wire_routes(app: FastAPI, state: AppState) -> None:
         if not expected or not check_token(headers, expected):
             # Reject the upgrade with 403. Starlette maps this to an HTTP 403
             # response and does NOT upgrade the connection.
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="unauthorized"
-            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="unauthorized")
 
         await websocket.accept()
         await handle_link(
@@ -258,14 +254,12 @@ def _make_on_user_message(state: AppState):  # type: ignore[no-untyped-def]
     loop publishes under; the endpoint sees it on every event's ``thread_id``.
     """
 
-    async def _spawn(frame: "UserMessage") -> None:
+    async def _spawn(frame: UserMessage) -> None:
         provider_name = frame.provider or "auto"
         try:
             provider = resolve_provider_name(provider_name, state.settings)
         except KeyError as e:
-            state.bus.publish(
-                _error_event(frame.thread_id, f"unknown provider: {e}")
-            )
+            state.bus.publish(_error_event(frame.thread_id, f"unknown provider: {e}"))
             return
 
         thread_id = frame.thread_id
@@ -279,9 +273,7 @@ def _make_on_user_message(state: AppState):  # type: ignore[no-untyped-def]
                 # Create with the requested id so the loop has a row to write
                 # into; pin provider/model from the request / settings.
                 model = state.settings.resolved_model(provider) or None
-                await state.store.create_thread(
-                    provider=provider, model=model, thread_id=thread_id
-                )
+                await state.store.create_thread(provider=provider, model=model, thread_id=thread_id)
 
         loop = AgentLoop(
             settings=state.settings,

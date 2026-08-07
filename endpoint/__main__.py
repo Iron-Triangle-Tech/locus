@@ -19,7 +19,8 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from endpoint.settings import EndpointSettings, get_settings
 
@@ -30,28 +31,31 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         description="Connect to a Locus core server and enter the REPL.",
     )
     p.add_argument(
-        "--core", dest="core_url",
+        "--core",
+        dest="core_url",
         help="WS URL of core's /link endpoint (default: endpoint/config.toml [core].url)",
     )
     p.add_argument(
-        "--token", dest="link_token",
+        "--token",
+        dest="link_token",
         help="Shared bearer token for the core<->endpoint link "
-             "(default: LOCUS_ENDPOINT_LINK_TOKEN env; not stored in config.toml)",
+        "(default: LOCUS_ENDPOINT_LINK_TOKEN env; not stored in config.toml)",
     )
     p.add_argument(
-        "--endpoint-id", dest="endpoint_id",
+        "--endpoint-id",
+        dest="endpoint_id",
         help="Identifier announced in the endpoint's Connect frame (default: endpoint-1)",
     )
     p.add_argument(
-        "--no-stream", dest="stream_tokens", action="store_false",
+        "--no-stream",
+        dest="stream_tokens",
+        action="store_false",
         help="Buffer to final instead of streaming tokens inline",
     )
     return p
 
 
-def _apply_overrides(
-    settings: EndpointSettings, args: argparse.Namespace
-) -> EndpointSettings:
+def _apply_overrides(settings: EndpointSettings, args: argparse.Namespace) -> EndpointSettings:
     """Return a copy of ``settings`` with any CLI overrides applied.
 
     ``model_copy(update=...)`` keeps nested pydantic models immutable: we
